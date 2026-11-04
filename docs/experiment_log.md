@@ -232,3 +232,33 @@ Memory-design ablation, Gaussian σ = 0.5, 10-seed mean accuracy:
 - Mechanism: averaging does not widen margins; it shifts nearest-pattern decision boundaries slightly towards
   class-mean directions, which changes the outcome only for fragile (mostly noisy) queries, with a small net gain.
 - RQ1 closed: construction choices move robust accuracy by < 0.5 pp; k-means already captures the averaging benefit.
+
+---
+
+## 2026-11-05 — RQ2 headroom checks (validation only, 10 seeds)
+
+- Command: `python -m benchmarks.memory_headroom --reports-dir <REPORTS_DIR>` (42 min on CPU). Tests: 397 passed.
+- k-means 8 per class; retrieval centre = clean training mean; beta tuned per design on the validation tuning half.
+- Training noise for check 2 uses stream 2 (validation 1, test 0).
+
+| Memory | Δ robust vs k-means on all data (pp) | 95 % CI | +/− |
+|---|---|---|---|
+| first 10 per class, frozen | −1.36 | [−1.95, −0.77] | 0/10 |
+| first 30 per class, frozen | −1.10 | [−1.76, −0.43] | 1/9 |
+| first 100 per class, frozen | −0.65 | [−1.12, −0.19] | 0/10 |
+| first 300 per class, frozen | −0.29 | [−0.65, +0.07] | 2/8 |
+| clean + matched corrupted training data | +0.42 | [−1.17, +2.01] | 7/3 |
+| clean + mismatched corrupted training data | +1.17 | [−1.02, +3.36] | 7/3 |
+
+- Memory gain over no memory: 3.2 pp robust; a memory frozen after 10 per class keeps about 1.8 pp of it.
+- Mismatched noise: Gaussian 0.5 +4.95 pp, S&P 0.2 +2.87 pp, but Gaussian 0.3 −1.23, occlusion 10 −0.47, clean −0.22.
+- beta*: k-means on all data 1000; small starts 20 (first 300: 1e4); noisy designs 20-50.
+
+### Conclusions
+
+- Stationary maintenance from a small start has measurable headroom (1.1-1.4 pp at 10-30 per class), consistent
+  across seeds and shrinking with the starting pool.
+- Noisy-data adaptation trades heavy-noise gains for light-noise, clean and unseen-occlusion losses; wide spread,
+  CIs include zero: exploratory only.
+- Proposed RQ2 scenario: stationary stream from 10 and 30 per class (100, 300 reported),
+  compared against the same small start kept frozen.
