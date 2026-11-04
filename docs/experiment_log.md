@@ -124,3 +124,41 @@ Memory-design ablation, Gaussian σ = 0.5, 10-seed mean accuracy:
 
 - Comparison script: every method and budget on the same cached backbones, beta selected on
   validation per method, Gaussian and salt-and-pepper AUC over 10 seeds; head agreement on all seeds.
+
+---
+
+## 2026-11-04 — RQ1 result: memory selection benchmark (10 seeds)
+
+- Command: `python -m benchmarks.memory_selection_benchmark --reports-dir <REPORTS_DIR>`
+  (cached backbones for all 10 seeds; wall time 2 min 16 s). Tests: 382 passed.
+- Protocol frozen before test evaluation (G4): primary = Gaussian and salt-and-pepper AUC vs k-means
+  at equal budget; Holm over six primary tests per method; clean-accuracy non-inferiority 0.005;
+  beta tuned identically per design on validation only.
+- beta*: k-means and facility location 100 at every budget; class means 100; random 10 / 20 / 20.
+
+| k/class | FL − k-means, Gaussian AUC | FL − k-means, S&P AUC | Random − k-means, S&P AUC |
+|---|---|---|---|
+| 2 | −0.45 pp (0/10 seeds +; Holm p 0.012) LOSS | −0.45 pp (1/10; 0.039) LOSS | −2.17 pp (0/10) LOSS |
+| 4 | −0.14 pp (4/10; 0.75) n.s. | −0.35 pp (1/10; 0.029) LOSS | −1.90 pp (0/10) LOSS |
+| 8 | −0.00 pp (5/10; 0.92) n.s. | −0.22 pp (4/10; 0.25) n.s. | −1.18 pp (0/10) LOSS |
+
+- Clean accuracy: facility location non-inferior at every budget; random inferior at k=2.
+- Head correct on stored patterns: facility location 800/800 (k=8, all seeds); random 795/800.
+- Validation coverage (k=8): k-means 0.9715, facility location 0.9696, random 0.9602.
+
+### Conclusions
+
+- RQ1: facility location does not beat k-means at any budget; it loses at low budgets and ties at
+  k=8. Ordering at every budget: k-means >= facility location > random.
+- H9 refuted: the gap to k-means is largest at k=2 and closes by k=8.
+- H5 failure mode not observed for facility location, so C2 is not added (no failure to fix).
+  The construction method stays C1 only.
+- Interpretation (not tested): centroid averaging acts as denoising; random memories selecting a
+  lower beta on validation is consistent with this.
+- Effect sizes are small (< 0.5 pp) relative to the memory's gain over no memory (+2.8 pp).
+
+### Next
+
+- RQ2: bounded maintenance with facility-location marginal-gain replacement.
+- Backlog (needs leader approval, validation-only selection, labelled post hoc): hybrid that selects
+  regions by facility location and stores local averages.
