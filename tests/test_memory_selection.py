@@ -9,9 +9,11 @@ import pytest
 import torch
 
 from benchmarks.memory_selection import (
+    class_coverage,
     coverage_similarity,
     facility_location_objective,
     greedy_facility_location,
+    nested_prefix,
     random_selection,
     select_class_memory,
 )
@@ -214,3 +216,27 @@ def test_build_memory_methods() -> None:
     assert torch.equal(km_default, km_explicit)  # existing behaviour unchanged
     with pytest.raises(ValueError):
         build_memory(z, labels, per_class=3, center=True, seed=0, method="medoids")
+
+
+@pytest.mark.parametrize("method", ["facility_location", "random"])
+def test_selection_is_nested_across_budgets(method: str) -> None:
+    z, labels = labelled_blobs()
+    mu = z.mean(dim=0)
+    big, big_labels, _ = select_class_memory(z, labels, per_class=6, method=method, center=mu, seed=3)
+    small, small_labels, _ = select_class_memory(z, labels, per_class=2, method=method, center=mu, seed=3)
+    prefix, prefix_labels = nested_prefix(big, big_labels, per_class_max=6, per_class=2)
+    assert torch.equal(prefix, small) and torch.equal(prefix_labels, small_labels)
+    with pytest.raises(ValueError):
+        nested_prefix(big, big_labels, per_class_max=6, per_class=7)
+
+
+def test_class_coverage_uses_only_same_class_patterns() -> None:
+    memory = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
+    memory_labels = torch.tensor([0, 1])
+    z = torch.tensor([[1.0, 0.0], [1.0, 0.0]])
+    labels = torch.tensor([0, 1])
+    cov = class_coverage(z, labels, memory, memory_labels, None)
+    # Point 1 is identical to the class-0 pattern but must be scored against class 1.
+    assert torch.allclose(cov, torch.tensor([1.0, 0.5], dtype=torch.float64))
+    with pytest.raises(ValueError):
+        class_coverage(z, torch.tensor([0, 2]), memory, memory_labels, None)

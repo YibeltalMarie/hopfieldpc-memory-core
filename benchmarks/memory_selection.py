@@ -156,3 +156,47 @@ def select_class_memory(
         block_labels.append(torch.full((per_class,), c, dtype=torch.long))
     source = torch.cat(rows)
     return z_train[source].clone(), torch.cat(block_labels), source
+
+
+def nested_prefix(
+    memory: torch.Tensor,
+    memory_labels: torch.Tensor,
+    *,
+    per_class_max: int,
+    per_class: int,
+    num_classes: int = 10,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """First ``per_class`` patterns of each class block of a class-wise selection.
+
+    Greedy facility location (and seeded random selection) are nested: the
+    first k picks at budget K are exactly the selection at budget k, so one
+    run at the largest budget yields every smaller budget.
+    """
+    if not 1 <= per_class <= per_class_max:
+        raise ValueError(f"per_class ({per_class}) must be in [1, {per_class_max}].")
+    if memory.shape[0] != num_classes * per_class_max or memory_labels.shape[0] != memory.shape[0]:
+        raise ValueError("memory must hold num_classes * per_class_max class-ordered patterns.")
+    keep = torch.cat([torch.arange(c * per_class_max, c * per_class_max + per_class)
+                      for c in range(num_classes)])
+    return memory[keep], memory_labels[keep]
+
+
+def class_coverage(
+    z: torch.Tensor,
+    labels: torch.Tensor,
+    memory: torch.Tensor,
+    memory_labels: torch.Tensor,
+    center: torch.Tensor | None,
+) -> torch.Tensor:
+    """q from each embedding to its nearest stored pattern of the same class, [N] float64.
+
+    Used on held-out (validation) embeddings to measure memory coverage.
+    """
+    out = torch.empty(z.shape[0], dtype=torch.float64)
+    for c in torch.unique(labels).tolist():
+        rows = labels == c
+        patterns = memory[memory_labels == c]
+        if patterns.shape[0] == 0:
+            raise ValueError(f"memory has no pattern of class {c}.")
+        out[rows] = coverage_similarity(z[rows], patterns, center).max(dim=1).values.cpu()
+    return out
