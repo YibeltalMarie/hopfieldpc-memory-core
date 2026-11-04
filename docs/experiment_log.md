@@ -194,3 +194,41 @@ Memory-design ablation, Gaussian σ = 0.5, 10-seed mean accuracy:
   averages. M2 (difficulty weighting), M3 (retrieval-aware) and M4 (corruption-aware) are not motivated.
 - G5b (proposed, pending leader): close RQ1 as a negative result with an identified mechanism. For RQ2, consider
   facility-location gain for admission with running-average pattern updates (deviation from P3, needs approval).
+
+---
+
+## 2026-11-04 — P6b diagnostics v2 (own-cluster medoids, CIs, plateau, margins; validation only)
+
+- Command: `python -m benchmarks.memory_diagnostics --reports-dir <REPORTS_DIR>` (1 min 59 s). Tests: 394 passed.
+- Own-cluster restriction changed 15 % of k-means medoids (k=2: 0.150 ± 0.041; k=8: 0.154 ± 0.045).
+- beta plateau confirmed: best − beta100 = +0.03 to +0.07 pp for all non-random designs; random peaks at beta 10-20.
+
+### Audit C (robust acc, paired by seed, 95 % t-CI, Holm over 8)
+
+| k | Contrast | Δ (pp) | 95 % CI | d_z | +/− | Holm p |
+|---|---|---|---|---|---|---|
+| 2 | averaging, k-means regions | +0.09 | [−0.07, +0.25] | 0.41 | 5/5 | 0.97 |
+| 2 | averaging, FL regions | +0.36 | [+0.17, +0.54] | 1.38 | 8/1 | 0.055 |
+| 2 | regions, averages | −0.14 | [−0.40, +0.13] | −0.37 | 3/7 | 0.77 |
+| 2 | regions, real points | −0.40 | [−0.67, −0.14] | −1.09 | 1/9 | 0.047 |
+| 8 | averaging, k-means regions | +0.22 | [+0.04, +0.40] | 0.88 | 8/1 | 0.098 |
+| 8 | averaging, FL regions | +0.22 | [+0.06, +0.38] | 0.99 | 8/2 | 0.082 |
+| 8 | regions, averages | +0.05 | [−0.21, +0.31] | 0.14 | 6/4 | 0.97 |
+| 8 | regions, real points | +0.05 | [−0.19, +0.29] | 0.14 | 7/3 | 0.97 |
+
+### Margins and flips
+
+- Accuracy from margin > 0 matches measured accuracy within 0.01 pp (non-random designs): nearest-pattern classification.
+- Averaging raises s_true and s_other almost equally (FL k=2: +0.0118 / +0.0121); mean margin unchanged.
+- About 1.6 % of noisy queries flip between pick and mean; flipped queries have small margins (median 0.011-0.018);
+  fixed > broken (FL k=2: 125 vs 80; k=8: 95 vs 68); net +2 to +4 per 1000 queries.
+- Averaged patterns align slightly better with class-mean directions (0.975 vs 0.971 at k=2; 0.946 vs 0.941 at k=8).
+- Flipped queries are mildly enriched for boundary/rare examples (24-26 % vs about 19 % base rate).
+
+### Conclusions
+
+- Averaging is the direction-consistent factor (3 of 4 CIs exclude 0, 0.2-0.4 pp) but does not survive strict Holm;
+  region choice matters only for real points at k=2 (the one contrast surviving Holm).
+- Mechanism: averaging does not widen margins; it shifts nearest-pattern decision boundaries slightly towards
+  class-mean directions, which changes the outcome only for fragile (mostly noisy) queries, with a small net gain.
+- RQ1 closed: construction choices move robust accuracy by < 0.5 pp; k-means already captures the averaging benefit.
