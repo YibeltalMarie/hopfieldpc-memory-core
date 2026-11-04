@@ -71,6 +71,7 @@ from benchmarks.mnist_baseline import (
     time_full_evaluation,
     tune_baseline,
 )
+from benchmarks.memory_selection import SELECTION_METHODS, select_class_memory
 from hopfieldpc import HopfieldMemory
 from hopfieldpc.api import validate_beta
 
@@ -291,16 +292,29 @@ def build_memory(
     center: bool,
     seed: int,
     num_classes: int = 10,
+    method: str = "kmeans",
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
     """Stored patterns for the embedding bridge.
 
-    per_class = 1 gives the class means; larger
+    method="kmeans" (default): per_class = 1 gives the class means; larger
     values store k-means centroids of each class's training embeddings
     (Ramsauer et al. 2020, Table A.3: 1 or 8 stored patterns per class).
+    method="facility_location" or "random": per_class real training
+    embeddings per class, selected by benchmarks.memory_selection under the
+    same centring the bridge uses for retrieval scores.
     ``center`` returns the train-mean embedding [D] used to center scores.
 
     Returns (memory [C*per_class, D], memory_labels [C*per_class], center | None).
     """
+    if method not in SELECTION_METHODS:
+        raise ValueError(f"unknown memory method {method!r}; expected one of {SELECTION_METHODS}.")
+    mean = z_train.mean(dim=0) if center else None
+    if method != "kmeans":
+        memory, memory_labels, _ = select_class_memory(
+            z_train, labels, per_class=per_class, method=method, center=mean,
+            seed=seed, num_classes=num_classes,
+        )
+        return memory, memory_labels, mean
     generator = torch.Generator().manual_seed(seed)
     blocks, block_labels = [], []
     for c in range(num_classes):
@@ -308,7 +322,6 @@ def build_memory(
         blocks.append(zc.mean(dim=0, keepdim=True) if per_class == 1
                       else kmeans(zc, per_class, generator=generator))
         block_labels.append(torch.full((per_class,), c, dtype=torch.long))
-    mean = z_train.mean(dim=0) if center else None
     return torch.cat(blocks), torch.cat(block_labels), mean
 
 
