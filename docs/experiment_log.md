@@ -162,3 +162,35 @@ Memory-design ablation, Gaussian σ = 0.5, 10-seed mean accuracy:
 - RQ2: bounded maintenance with facility-location marginal-gain replacement.
 - Backlog (needs leader approval, validation-only selection, labelled post hoc): hybrid that selects
   regions by facility location and stores local averages.
+
+---
+
+## 2026-11-04 — P6b diagnostics (validation only, 10 seeds)
+
+- Command: `python -m benchmarks.memory_diagnostics --reports-dir <REPORTS_DIR>` (1 min 46 s). Tests: 390 passed.
+- Validation split per seed into tuning (beta) and evaluation halves (2,500 each); beta grid extended to 1e4.
+
+### Results
+
+- beta* = 1e4 (nearest pattern) for every averaged and facility-location design (k-means k=8: 1000); random 10-20.
+  Validation curves are flat above beta = 100 (< 0.1 pp), so the original grid ceiling is immaterial.
+- N_eff = 1.00 and blend error = 0.0000 for all non-random designs: retrieval acts as a nearest-pattern classifier
+  and every error is a retrieval error (nearest stored pattern of the wrong class). Hypothesis C ruled out.
+- Audit C (robust acc = mean over Gaussian 0.3/0.5, S&P 0.1/0.2, occlusion 10; paired by seed; p descriptive):
+  - k=2: averaging | FL regions +0.36 pp (8/1, p 0.008); averaging | k-means regions +0.07 (6/4);
+    regions | averages -0.14 (3/7); regions | real points -0.42 (2/8, p 0.02).
+  - k=8: averaging | FL regions +0.22 (8/2, p 0.014); averaging | k-means regions +0.13 (8/2, p 0.047);
+    regions | averages +0.05 (6/4); regions | real points -0.04 (5/5).
+- FL picks lie close to their region means (cosine 0.993-0.995). Centred norm: picks about 34-35, averages about 29.
+- B3: all designs lose coverage at similar rates under noise; cos(noisy, clean) = 0.61 at Gaussian 0.5.
+- B4: boundary/rare robust accuracy about 0.57 vs typical 0.86 for all designs; between-design differences <= 1 pp.
+- All non-random designs lie within 0.5 pp robust accuracy; seed SD 3.4 pp.
+
+### Conclusions
+
+- The facility-location loss is explained by storing real points instead of averages; region choice contributes
+  little (only at k=2 with real points). FL regions + averaging ties k-means (+0.05 pp at k=8).
+- Construction choice has limited downstream impact on MNIST with this encoder, provided patterns are centred
+  averages. M2 (difficulty weighting), M3 (retrieval-aware) and M4 (corruption-aware) are not motivated.
+- G5b (proposed, pending leader): close RQ1 as a negative result with an identified mechanism. For RQ2, consider
+  facility-location gain for admission with running-average pattern updates (deviation from P3, needs approval).
