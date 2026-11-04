@@ -87,3 +87,40 @@ Memory-design ablation, Gaussian σ = 0.5, 10-seed mean accuracy:
 
 - Implement the class-wise facility-location selector (P5) and its unit tests.
 - Test H9 (low budgets, 2–4 per class) on validation data first.
+
+---
+
+## 2026-11-04 — P5: real-embedding selection implemented; seed-0 diagnostic
+
+- Added `benchmarks/memory_selection.py` (class-wise greedy facility location on train-mean-centred
+  cosine; class-wise random control) and `build_memory(method=...)`; default `kmeans` unchanged.
+- `pytest -q`: 17 new tests pass; full suite 370 passed in 17.01 s.
+- Diagnostic, seed 0, training and validation data only (no test data). Coverage = q from each
+  validation embedding to its nearest same-class stored pattern.
+
+| Method | k/class | Build (s) | Head correct on stored | Val mean q | Val min q |
+|---|---|---|---|---|---|
+| kmeans | 2 | 0.45 | 20/20 | 0.9593 | 0.4929 |
+| facility_location | 2 | 12.94 | 20/20 | 0.9552 | 0.4626 |
+| random | 2 | 0.01 | 20/20 | 0.9347 | 0.4438 |
+| kmeans | 4 | 0.52 | 40/40 | 0.9663 | 0.5056 |
+| facility_location | 4 | 17.10 | 40/40 | 0.9638 | 0.5424 |
+| random | 4 | 0.01 | 40/40 | 0.9471 | 0.5236 |
+| kmeans | 8 | 0.64 | 80/80 | 0.9718 | 0.5450 |
+| facility_location | 8 | 25.41 | 80/80 | 0.9697 | 0.5424 |
+| random | 8 | 0.01 | 80/80 | 0.9604 | 0.5236 |
+
+### Observations (single seed; not a result)
+
+- Facility location covers validation data better than random at every budget (+0.009 to +0.021),
+  and slightly worse than k-means (-0.002 to -0.004); the gap to k-means is largest at k=2.
+- The head classifies every stored pattern correctly for all methods: the H5 failure mode was not
+  observed on seed 0, so the head-agreement part of C2 currently has no failure to fix.
+- Facility-location and random selections are nested across budgets, so the worst-case value can
+  repeat between k=4 and k=8; the min is driven by a single point and is descriptive only.
+- Facility location costs 13-25 s per seed versus about 0.5 s for k-means.
+
+### Next
+
+- Comparison script: every method and budget on the same cached backbones, beta selected on
+  validation per method, Gaussian and salt-and-pepper AUC over 10 seeds; head agreement on all seeds.
