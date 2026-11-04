@@ -6,8 +6,11 @@ import pytest
 import torch
 
 from benchmarks.memory_diagnostics import (
+    flip_counts,
     medoid_representatives,
+    paired_summary,
     region_means,
+    retrieval_margins,
     retrieval_stats,
     split_validation,
     subgroups,
@@ -39,10 +42,11 @@ def test_medoids_are_distinct_real_rows_closest_to_centroids() -> None:
     medoids, src = medoid_representatives(z, y, km, km_labels, mu)
     assert medoids.shape == km.shape and torch.equal(medoids, z[src])
     assert torch.equal(y[src], km_labels) and len(set(src.tolist())) == src.numel()
-    # The first centroid's medoid is the most similar real point of its class.
+    # The first centroid's medoid is the most similar member of its own k-means cluster.
     rows = torch.nonzero(y == 0, as_tuple=True)[0]
-    cos = torch.nn.functional.cosine_similarity(z[rows] - mu, (km[0] - mu)[None], dim=1)
-    assert src[0].item() == rows[int(cos.argmax())].item()
+    members = rows[torch.cdist(z[rows], km[:3]).argmin(dim=1) == 0]
+    cos = torch.nn.functional.cosine_similarity(z[members] - mu, (km[0] - mu)[None], dim=1)
+    assert src[0].item() == members[int(cos.argmax())].item()
 
 
 def test_medoids_never_reuse_a_point() -> None:
@@ -110,3 +114,42 @@ def test_selection_centre_equals_retrieval_centre() -> None:
     net = build_hopfield_net(build_baseline_net(0), memory, labels, beta=1.0, center=center)
     assert isinstance(net.bridge, HopfieldBridge)
     assert torch.allclose(net.bridge.center.cpu(), z.mean(dim=0))
+
+
+def test_own_cluster_restriction_changes_the_medoid() -> None:
+    # Row 1 is the most cosine-similar to centroid 0 but belongs (Euclidean) to centroid 1.
+    z = torch.tensor([[0.9, 0.2], [3.0, 0.0], [2.8, 0.6]])
+    y = torch.zeros(3, dtype=torch.long)
+    cents = torch.tensor([[1.0, 0.0], [3.0, 0.5]])
+    cl = torch.zeros(2, dtype=torch.long)
+    _, own = medoid_representatives(z, y, cents, cl, None, own_cluster=True)
+    _, anywhere = medoid_representatives(z, y, cents, cl, None, own_cluster=False)
+    assert own.tolist() == [0, 2] and anywhere.tolist() == [1, 2]
+
+
+def test_retrieval_margins_sign_matches_nearest_pattern_class() -> None:
+    memory = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
+    labels = torch.tensor([0, 1])
+    z = torch.tensor([[1.0, 0.1], [1.0, 0.1]])
+    m, s_true, s_other = retrieval_margins(z, torch.tensor([0, 1]), memory, labels, None)
+    expected = 1.0 / (1.01 ** 0.5)
+    assert s_true[0].item() == pytest.approx(expected) and s_other[0].item() == pytest.approx(0.1 * expected)
+    assert m[0].item() > 0 > m[1].item()
+    assert m[0].item() == pytest.approx(-m[1].item())
+
+
+def test_paired_summary_matches_hand_computation() -> None:
+    s = paired_summary([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    sd = (17.5 / 5) ** 0.5
+    assert s["mean"] == pytest.approx(3.5) and s["sd"] == pytest.approx(sd)
+    half = 2.571 * sd / 6 ** 0.5
+    assert s["ci_low"] == pytest.approx(3.5 - half) and s["ci_high"] == pytest.approx(3.5 + half)
+    assert s["d_z"] == pytest.approx(3.5 / sd) and s["n_pos"] == 6 and s["n_neg"] == 0
+    assert s["wilcoxon_p"] == pytest.approx(2 / 2**6)
+    assert paired_summary([0.5])["wilcoxon_p"] is None
+
+
+def test_flip_counts() -> None:
+    a = torch.tensor([True, True, False, False])
+    b = torch.tensor([False, True, True, False])
+    assert flip_counts(a, b) == {"fixed": 1, "broken": 1}
