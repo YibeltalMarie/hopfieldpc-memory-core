@@ -262,3 +262,12 @@ Memory-design ablation, Gaussian σ = 0.5, 10-seed mean accuracy:
   CIs include zero: exploratory only.
 - Proposed RQ2 scenario: stationary stream from 10 and 30 per class (100, 300 reported),
   compared against the same small start kept frozen.
+
+## 2026-11-05 — RQ2 protocol frozen (G6), before any RQ2 test evaluation
+
+- **Code:** `benchmarks/memory_maintenance.py` (policies), `benchmarks/memory_maintenance_benchmark.py` (protocol), `tests/test_memory_maintenance.py`.
+- **Scenario:** k-means start (8 per class) on the first n₀ per class, then 1,000 per class streamed; n₀ ∈ {10, 30} primary, {100, 300} descriptive; 10 seeds × 3 orders, averaged over orders, paired by seed.
+- **Policies:** frozen, fifo, reservoir, fl_swap, ra (ablation), ra_fl (proposed); K = 8 per class fixed. Ceiling: k-means on all seen data.
+- **Constants:** reference set 200 per class, layout check every 50 arrivals, ε = 0; retrieval centre = initial-pool mean; β per (policy, n₀) on validation.
+- **Primary:** ra_fl − frozen, Gaussian and S&P AUC at n₀ = 10, 30 on test; Holm over 4; win = mean > 0, more positive seeds, Holm p < 0.05, clean Δ ≥ −0.005.
+- **Note:** the test split was already read for RQ1, so RQ2 test results are second-stage confirmatory.
