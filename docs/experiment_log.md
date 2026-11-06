@@ -271,3 +271,18 @@ Memory-design ablation, Gaussian σ = 0.5, 10-seed mean accuracy:
 - **Constants:** reference set 200 per class, layout check every 50 arrivals, ε = 0; retrieval centre = initial-pool mean; β per (policy, n₀) on validation.
 - **Primary:** ra_fl − frozen, Gaussian and S&P AUC at n₀ = 10, 30 on test; Holm over 4; win = mean > 0, more positive seeds, Holm p < 0.05, clean Δ ≥ −0.005.
 - **Note:** the test split was already read for RQ1, so RQ2 test results are second-stage confirmatory.
+
+## 2026-11-05 — RQ2 results (protocol G6, test split, second-stage)
+
+- **Primary:** ra_fl vs frozen, Gaussian and S&P AUC at n0 = 10, 30. All four "no significant difference": Δ from +0.04 to +0.52 pp, every 95 % CI includes 0, Holm p ≥ 0.64. **No win.**
+- **Why:** even the offline reference (k-means on everything seen; a comparator, not a proven upper bound) is not significantly better than frozen on these AUCs (+0.17 to +0.62 pp, p ≥ 0.19). Gains at light and moderate noise (+0.5 to +0.8 pp) are cancelled by losses at Gaussian 0.7–1.0. The headroom check measured moderate-noise accuracy, but the frozen primary metric was AUC: a design error, recorded.
+- **Descriptive (not primary):** clean accuracy and occlusion AUC improve in 10/10 seeds for ra, ra_fl and fl_swap. At n0 = 10, ra_fl gains +0.47 pp clean and +0.87 pp occlusion; ra gains +0.47 and +0.95; the offline reference gains +0.58 clean.
+- **Ablation:** ra_fl − ra is about 0 on clean and slightly negative on occlusion (0/10 seeds at n0 = 30). The facility-location layout step adds nothing; averaging is the active ingredient, consistent with RQ1.
+- **Other policies:** FIFO and reservoir do not improve on frozen. ra costs about 300 µs per arrival (Python) and 80 extra floats; ra_fl and fl_swap need a 256k-float reference set.
+- **Next (pending leader approval):** confirmation test of ra vs frozen, with clean accuracy and occlusion AUC fixed as primary metrics in advance, on a new held-out confirmation split.
+
+## 2026-11-06 — Work closed; handed to the project leader
+
+- **Terminology:** k-means on everything seen is an offline reference, not a ceiling. It optimises clustering distortion, not classification; at n0 = 300 ra and ra_fl slightly exceed it on Gaussian AUC.
+- **Known flaw:** when ra_fl's layout step spawns a pattern from the reference set, that embedding is already counted in another slot, so it is counted twice. About 24 spawns per run; the conclusion does not change.
+- **Proposed, not run:** (1) confirmation of running average vs frozen with clean accuracy and occlusion AUC fixed in advance as main metrics, on a new held-out split from MNIST training data, backbones retrained, evaluated once; (2) a shifting-stream study for admission/replacement policies. Both await the leader's decision.
