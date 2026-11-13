@@ -58,16 +58,11 @@ import torch
 from benchmarks.memory_selection import class_coverage, nested_prefix, select_class_memory
 from benchmarks.mnist_baseline import (
     NOISE_TYPES,
-    build_arg_parser,
-    config_from_args,
     forward_embeddings,
-    load_mnist,
     mean_std,
     noise_grids,
-    prepare_baseline_run,
     resolve_device,
     robust_auc,
-    tune_baseline,
 )
 from benchmarks.mnist_prototype_retrieval import (
     beta_curve,
@@ -76,6 +71,7 @@ from benchmarks.mnist_prototype_retrieval import (
     seed_stats,
     select_beta,
 )
+from benchmarks.runs import build_arg_parser, config_from_args, load_data, prepare_run, tune_backbone
 
 BUDGETS = (2, 4, 8)
 METHODS = ("kmeans", "facility_location", "random")
@@ -160,8 +156,8 @@ def evaluate_test(net: Any, run: Any, grids: dict[str, list[float]]) -> dict[str
 
 def run_benchmark(cfg: dict[str, Any], *, retrain: bool = False) -> dict[str, Any]:
     device = resolve_device(cfg["device"])
-    data = load_mnist(cfg["data_dir"])
-    tune_baseline(cfg, data, device, retrain=retrain)  # cached; restores tuned lr / batch / epochs
+    data = load_data(cfg)
+    tune_backbone(cfg, data, device, retrain=retrain)  # cached; restores tuned lr / batch / epochs
     betas, sel_sets, grids = cfg["beta_values"], cfg["beta_selection_sets"], noise_grids(cfg)
     names = design_names()
 
@@ -170,7 +166,7 @@ def run_benchmark(cfg: dict[str, Any], *, retrain: bool = False) -> dict[str, An
     curves: dict[str, list[list[float]]] = {n: [] for n in names}
     diagnostics: dict[str, list[dict[str, Any]]] = {n: [] for n in names}
     for seed in cfg["seeds"]:
-        run = prepare_baseline_run(cfg, data, seed, device, retrain=retrain)
+        run = prepare_run(cfg, data, seed, device, retrain=retrain)
         print(f"  seed {seed}: building memories")
         designs = build_designs(run, cfg["center_prototypes"], device)
         nets = {}

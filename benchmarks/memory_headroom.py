@@ -31,18 +31,14 @@ import torch
 
 from benchmarks.memory_diagnostics import key, paired_summary, split_validation, tune_score
 from benchmarks.mnist_baseline import (
-    build_arg_parser,
-    config_from_args,
     encode,
     forward_embeddings,
-    load_mnist,
     make_corrupted_test_set,
     mean_std,
-    prepare_baseline_run,
     resolve_device,
-    tune_baseline,
 )
 from benchmarks.mnist_prototype_retrieval import build_hopfield_net, build_memory, select_beta
+from benchmarks.runs import build_arg_parser, config_from_args, load_data, prepare_run, tune_backbone
 
 PER_CLASS = 8
 START_SIZES = (10, 30, 100, 300)
@@ -112,14 +108,14 @@ def evaluate(net: Any, run: Any, ev: torch.Tensor) -> dict[str, float]:
 
 def run_headroom(cfg: dict[str, Any], *, retrain: bool = False) -> dict[str, Any]:
     device = resolve_device(cfg["device"])
-    data = load_mnist(cfg["data_dir"])
-    tune_baseline(cfg, data, device, retrain=retrain)
+    data = load_data(cfg)
+    tune_backbone(cfg, data, device, retrain=retrain)
     betas = list(cfg["beta_values"]) + [b for b in EXTRA_BETAS if b not in cfg["beta_values"]]
     sel_sets = cfg["beta_selection_sets"]
 
     state, curves = [], {}
     for seed in cfg["seeds"]:
-        run = prepare_baseline_run(cfg, data, seed, device, retrain=retrain)
+        run = prepare_run(cfg, data, seed, device, retrain=retrain)
         tune, ev = split_validation(run.z_val.shape[0], seed)
         print(f"  seed {seed}: building designs (incl. corrupted training embeddings) and tuning beta")
         mu = run.z_train.mean(dim=0)

@@ -65,6 +65,7 @@ DEVICES = ("auto", "cpu", "cuda")
 
 COST_KEYS = ("batch_size", "batch_sizes", "warmup", "iters", "repeats", "num_threads")
 CONFIG_KEYS = (
+    "dataset",
     "seeds",
     "data_dir",
     "reports_dir",
@@ -97,6 +98,7 @@ SELECTION_KINDS = ("clean", *NOISE_TYPES)
 # beta chosen on clean + noisy validation sets whose levels are not in the test grids.
 DEFAULT_PROTOTYPES_PER_CLASS = 8
 DEFAULT_SELECTION_SETS = [["clean", 0], ["gaussian", 0.4], ["salt_pepper", 0.15]]
+AUGMENT_SEED_OFFSET = 7_919  # separates the augmentation stream from the batch-order stream
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +308,12 @@ def validate_mnist_config(config: dict[str, Any]) -> dict[str, Any]:
     if unknown:
         raise ValueError(f"Unknown configuration keys: {unknown}.")
 
+    dataset = config.get("dataset", "mnist")
+    if dataset != "mnist":
+        raise ValueError(
+            f"validate_mnist_config only handles dataset 'mnist', got {dataset!r}; "
+            "load other datasets through benchmarks.runs.load_config."
+        )
     seeds = _require_seeds(config.get("seeds", [0, 1, 2]))
 
     for key in ("data_dir", "reports_dir"):
@@ -356,6 +364,7 @@ def validate_mnist_config(config: dict[str, Any]) -> dict[str, Any]:
     )
 
     return {
+        "dataset": "mnist",
         "seeds": seeds,
         "data_dir": config.get("data_dir", "data"),
         "reports_dir": config.get("reports_dir", DEFAULT_REPORTS_DIR),
@@ -588,11 +597,13 @@ def corrupt_images(
     level: float,
     generator: torch.Generator,
 ) -> torch.Tensor:
-    """Apply one corruption to images [N, 1, H, W] in [0, 1]; returns a new tensor.
+    """Apply one corruption to images [N, C, H, W] in [0, 1]; returns a new tensor.
 
-    gaussian:    x + N(0, level^2), clamped to [0, 1]
+    gaussian:    x + N(0, level^2), independently per value, clamped to [0, 1]
     salt_pepper: each pixel independently replaced with probability ``level``,
-                 by 1 (salt) or 0 (pepper) with equal probability
+                 by 1 (salt) or 0 (pepper) with equal probability; one draw per
+                 pixel is applied to every channel, so colour images get black
+                 or white pixels (single-channel results are unchanged)
     occlusion:   a ``level`` x ``level`` square of zeros at a uniformly random
                  position fully inside the image
 
@@ -608,12 +619,11 @@ def corrupt_images(
         noise = torch.randn(images.shape, generator=generator, dtype=images.dtype)
         return (images + noise * level).clamp(0.0, 1.0)
     if kind == "salt_pepper":
-        hit = torch.rand(images.shape, generator=generator) < level
-        salt = torch.rand(images.shape, generator=generator) < 0.5
-        out = images.clone()
-        out[hit & salt] = 1.0
-        out[hit & ~salt] = 0.0
-        return out
+        pixel_shape = (n, 1, height, width)  # = images.shape for one channel
+        hit = torch.rand(pixel_shape, generator=generator) < level
+        salt = torch.rand(pixel_shape, generator=generator) < 0.5
+        out = torch.where(hit & salt, torch.ones_like(images), images)
+        return torch.where(hit & ~salt, torch.zeros_like(images), out)
     if kind == "occlusion":
         side = int(level)
         if side > min(height, width):
@@ -755,22 +765,30 @@ def train_baseline(
     seed: int,
     device: torch.device,
     on_epoch_end: Callable[[int], None] | None = None,
+    augment: Callable[[torch.Tensor, torch.Generator], torch.Tensor] | None = None,
 ) -> float:
-    """Train the baseline on clean images [N, 1, 28, 28] with Adam; return wall seconds.
+    """Train the baseline on clean images [N, C, H, W] with Adam; return wall seconds.
 
     ``on_epoch_end(epoch)`` (1-based) runs after each epoch with the net in
     eval mode; its time is included in the returned wall time.
+    ``augment(batch, generator)`` optionally transforms each training batch
+    (CPU, before the device transfer) with its own generator seeded from
+    ``seed``; None (the MNIST default) leaves training unchanged.
     """
     net.to(device).train()
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
     generator = torch.Generator().manual_seed(seed)
+    aug_generator = (
+        None if augment is None else torch.Generator().manual_seed(seed + AUGMENT_SEED_OFFSET)
+    )
     start = time.perf_counter()
     for epoch in range(epochs):
         perm = torch.randperm(images.shape[0], generator=generator)
         total_loss, total = 0.0, 0
         for i in range(0, images.shape[0], batch_size):
             idx = perm[i : i + batch_size]
-            x, y = images[idx].to(device), labels[idx].to(device)
+            x = images[idx] if augment is None else augment(images[idx], aug_generator)
+            x, y = x.to(device), labels[idx].to(device)
             logits, _, _, _ = net(x)
             loss = F.cross_entropy(logits, y)
             optimizer.zero_grad(set_to_none=True)

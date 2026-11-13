@@ -286,3 +286,19 @@ Memory-design ablation, Gaussian σ = 0.5, 10-seed mean accuracy:
 - **Terminology:** k-means on everything seen is an offline reference, not a ceiling. It optimises clustering distortion, not classification; at n0 = 300 ra and ra_fl slightly exceed it on Gaussian AUC.
 - **Known flaw:** when ra_fl's layout step spawns a pattern from the reference set, that embedding is already counted in another slot, so it is counted twice. About 24 spawns per run; the conclusion does not change.
 - **Proposed, not run:** (1) confirmation of running average vs frozen with clean accuracy and occlusion AUC fixed in advance as main metrics, on a new held-out split from MNIST training data, backbones retrained, evaluated once; (2) a shifting-stream study for admission/replacement policies. Both await the leader's decision.
+
+## 2026-11-13 — Target branch and dataset layer (step 1 of CIFAR-10 support)
+
+- **Branch:** the leader created `approach/facility-location` as the target for this work; it was merged into `experiment/diversity-memory` (no conflicts; it adds the energy-precision fix). One PR will be opened at the end.
+- **Dataset layer:** `benchmarks/datasets.py` (registry, loaders, checks, training-split-only channel statistics) and `benchmarks/runs.py` (a config's `dataset` key picks the pipeline). The memory benchmarks now go through `runs`.
+- **Hooks in `mnist_baseline.py`:** a `dataset: mnist` config key; salt-and-pepper drawn once per pixel across channels; optional training augmentation. A hash of MNIST splits, all corrupted sets and a 1-epoch training run is identical before and after.
+- **Next:** `cifar10_model.py`, `cifar10_baseline.py`, `configs/cifar10.yaml`, then an architecture pilot on validation.
+EOF%%bash
+cat >> docs/experiment_log.md <<'EOF'
+
+## 2026-11-13 — Target branch and dataset layer (step 1 of CIFAR-10 support)
+
+- **Branch:** the leader created `approach/facility-location` as the target for this work; it was merged into `experiment/diversity-memory` (no conflicts; it adds the energy-precision fix). One PR will be opened at the end.
+- **Dataset layer:** `benchmarks/datasets.py` (registry, loaders, checks, training-split-only channel statistics) and `benchmarks/runs.py` (a config's `dataset` key picks the pipeline). The memory benchmarks now go through `runs`.
+- **Hooks in `mnist_baseline.py`:** a `dataset: mnist` config key; salt-and-pepper drawn once per pixel across channels; optional training augmentation. A hash of MNIST splits, all corrupted sets and a 1-epoch training run is identical before and after.
+- **Next:** `cifar10_model.py`, `cifar10_baseline.py`, `configs/cifar10.yaml`, then an architecture pilot on validation.

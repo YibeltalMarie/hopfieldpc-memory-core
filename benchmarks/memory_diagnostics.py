@@ -48,14 +48,9 @@ from benchmarks.memory_selection import (
 )
 from benchmarks.memory_selection_benchmark import holm_adjust
 from benchmarks.mnist_baseline import (
-    build_arg_parser,
-    config_from_args,
     forward_embeddings,
-    load_mnist,
     mean_std,
-    prepare_baseline_run,
     resolve_device,
-    tune_baseline,
 )
 from benchmarks.mnist_prototype_retrieval import (
     build_hopfield_net,
@@ -63,6 +58,7 @@ from benchmarks.mnist_prototype_retrieval import (
     select_beta,
     wilcoxon_signed_rank_p,
 )
+from benchmarks.runs import build_arg_parser, config_from_args, load_data, prepare_run, tune_backbone
 
 BUDGETS = (2, 8)
 EXTRA_BETAS = (200.0, 500.0, 1000.0, 10000.0)  # 1e4 ~ nearest stored pattern
@@ -326,14 +322,14 @@ def baseline_subgroups(run: Any, ev: torch.Tensor, mu: torch.Tensor) -> dict[str
 
 def run_diagnostics(cfg: dict[str, Any], *, retrain: bool = False) -> dict[str, Any]:
     device = resolve_device(cfg["device"])
-    data = load_mnist(cfg["data_dir"])
-    tune_baseline(cfg, data, device, retrain=retrain)
+    data = load_data(cfg)
+    tune_backbone(cfg, data, device, retrain=retrain)
     betas = list(cfg["beta_values"]) + [b for b in EXTRA_BETAS if b not in cfg["beta_values"]]
     sel_sets = cfg["beta_selection_sets"]
 
     seeds_state, curves, geometry = [], {}, {}
     for seed in cfg["seeds"]:
-        run = prepare_baseline_run(cfg, data, seed, device, retrain=retrain)
+        run = prepare_run(cfg, data, seed, device, retrain=retrain)
         tune, ev = split_validation(run.z_val.shape[0], seed)
         print(f"  seed {seed}: building designs and tuning beta on {tune.numel()} validation images")
         designs, extra, mu = build_designs(run, device)

@@ -35,17 +35,13 @@ from benchmarks.memory_diagnostics import paired_summary
 from benchmarks.memory_maintenance import POLICY_CLASSES, stream_split
 from benchmarks.memory_selection_benchmark import evaluate_test, holm_adjust
 from benchmarks.mnist_baseline import (
-    build_arg_parser,
-    config_from_args,
     forward_embeddings,
-    load_mnist,
     mean_std,
     noise_grids,
-    prepare_baseline_run,
     resolve_device,
-    tune_baseline,
 )
 from benchmarks.mnist_prototype_retrieval import beta_curve, build_hopfield_net, build_memory, select_beta
+from benchmarks.runs import build_arg_parser, config_from_args, load_data, prepare_run, tune_backbone
 
 PER_CLASS = 8
 STREAM_PER_CLASS = 1000
@@ -127,8 +123,8 @@ def val_robust(net: Any, run: Any) -> float:
 
 def run_benchmark(cfg: dict[str, Any], *, retrain: bool = False) -> dict[str, Any]:
     device = resolve_device(cfg["device"])
-    data = load_mnist(cfg["data_dir"])
-    tune_baseline(cfg, data, device, retrain=retrain)
+    data = load_data(cfg)
+    tune_backbone(cfg, data, device, retrain=retrain)
     betas, sel_sets, grids = cfg["beta_values"], cfg["beta_selection_sets"], noise_grids(cfg)
     designs = POLICIES + (CEILING,)
 
@@ -139,7 +135,7 @@ def run_benchmark(cfg: dict[str, Any], *, retrain: bool = False) -> dict[str, An
     decision_log: dict[str, list[dict[str, Any]]] = {}
     stream_sizes: set[int] = set()
     for seed in cfg["seeds"]:
-        run = prepare_baseline_run(cfg, data, seed, device, retrain=retrain)
+        run = prepare_run(cfg, data, seed, device, retrain=retrain)
         runs.append(run)
         z, y = run.z_train, run.splits.train_labels
         per_class, starts = stream_plan(int(torch.bincount(y).min()))
