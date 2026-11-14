@@ -347,3 +347,9 @@ cat >> docs/experiment_log.md <<'EOF'
 | Occlusion | 0, 12, 16, 18, 20, 24 | 0.894 → 0.265 (floor not reached at the 24 px cap) | — (held out of β tuning) |
 
 - **`configs/cifar10.yaml` is now frozen** (model, training, grids, β-selection sets). The CIFAR-10 test split has still not been read. Next: validation-only screening of the existing construction strategies with an all-training-embeddings reference (headroom).
+
+## 2026-11-14 — Screening protocol (Phase 1, validation only), fixed before the first run
+
+- **Code:** `benchmarks/memory_screening.py`. Designs: no memory, class means, k-means / facility location / random at 2, 4, 8, 16 per class, all training embeddings (offline reference, not an upper bound).
+- **Protocol:** β per design on the tuning half of validation (config sets; grid extended to 10 000), metrics on the evaluation half; screening score = mean of the three noise AUCs on the frozen grids; clean accuracy as a guard; paired by seed against k-means k = 8; exploratory, no multiplicity correction. Test split not read.
+- **Headroom decision bands:** all_train − k-means k = 8 ≥ 1.0 pp → go; 0.5–1.0 pp → go with modest expectations; < 0.5 pp → report to the leader before building new methods.
