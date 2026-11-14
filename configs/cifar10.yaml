@@ -1,0 +1,75 @@
+# CIFAR-10 pipeline: frozen backbone + Hopfield memory benchmarks.
+# Used by benchmarks.cifar10_baseline, benchmarks.cifar10_pilot and, through
+# benchmarks.runs, every memory benchmark (pass --config configs/cifar10.yaml).
+#
+# PROVISIONAL until the validation-only pilot: model, epochs, lr, batch_size,
+# the noise grids and beta_selection_sets. They must be fixed (and this note
+# updated) before any CIFAR-10 test evaluation.
+dataset: cifar10
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+data_dir: "data"
+reports_dir: "reports/cifar10"
+device: "auto"            # auto | cpu | cuda
+
+# Splits: val_size images held out of the 50 000 training images (seeded per seed).
+val_size: 5000
+train_subset: null
+test_subset: null
+
+# Backbone (trained once per seed, then frozen). Normalization statistics come
+# from each seed's training split; augmentation = random crop (pad 4) + flip,
+# training only.
+model:
+  name: cnn               # cnn | resnet18
+  widths: [32, 64, 128]   # cnn only
+  embed_dim: 64
+augment: true
+epochs: 30
+batch_size: 128
+lr: 0.001
+eval_batch_size: 1000
+baseline_tuning: null     # CIFAR-10 settings come from benchmarks.cifar10_pilot
+
+# Hopfield memory.
+center_prototypes: true
+prototypes_per_class: 8
+# beta* = argmax of mean validation head_acc over these sets; levels deliberately
+# not in the noise grids below.
+beta_selection_sets: [["clean", 0], ["gaussian", 0.12], ["salt_pepper", 0.03]]
+beta_values: [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
+s1_beta: 10000.0
+num_updates_values: [1, 2, 3, 5]
+
+# Noise grids (each starts at the clean level 0). CIFAR-10 backbones degrade at
+# far lower noise than MNIST ones, hence the smaller levels.
+gaussian_sigmas: [0.0, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3]
+salt_pepper_probs: [0.0, 0.01, 0.02, 0.05, 0.1, 0.2]
+occlusion_sizes: [0, 8, 12, 16]
+noisy_sigma: 0.1
+placements: ["embedding"]
+
+cost:
+  batch_size: 256
+  batch_sizes: [1, 32, 256, 1024]
+  warmup: 10
+  iters: 100
+  repeats: 5
+  num_threads: 4
+
+# --quick overrides (cost merges per key).
+quick:
+  reports_dir: "reports/cifar10_quick"   # never overwrite full checkpoints
+  seeds: [0]
+  epochs: 1
+  val_size: 500
+  train_subset: 2000
+  test_subset: 1000
+  beta_values: [1.0, 10.0, 100.0, 1000.0]
+  gaussian_sigmas: [0.0, 0.05, 0.2]
+  salt_pepper_probs: [0.0, 0.02, 0.1]
+  occlusion_sizes: [0, 8, 16]
+  cost:
+    batch_sizes: [1, 32, 256]
+    warmup: 2
+    iters: 5
+    repeats: 2

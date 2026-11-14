@@ -302,3 +302,8 @@ cat >> docs/experiment_log.md <<'EOF'
 - **Dataset layer:** `benchmarks/datasets.py` (registry, loaders, checks, training-split-only channel statistics) and `benchmarks/runs.py` (a config's `dataset` key picks the pipeline). The memory benchmarks now go through `runs`.
 - **Hooks in `mnist_baseline.py`:** a `dataset: mnist` config key; salt-and-pepper drawn once per pixel across channels; optional training augmentation. A hash of MNIST splits, all corrupted sets and a 1-epoch training run is identical before and after.
 - **Next:** `cifar10_model.py`, `cifar10_baseline.py`, `configs/cifar10.yaml`, then an architecture pilot on validation.
+
+## 2026-11-13 — CIFAR-10 pipeline (step 2)
+
+- **Code:** `benchmarks/cifar10_model.py` (CNN and CIFAR ResNet-18 encoders with training-split normalization buffers; crop + flip augmentation for training only), `benchmarks/cifar10_baseline.py` (config, cached frozen backbones, per-seed runs, validation-only report), `benchmarks/cifar10_pilot.py` (architecture pilot, validation only), `configs/cifar10.yaml`.
+- **Decisions:** backbone trained with the shared Adam loop (comparability with MNIST, code reuse); no grid tuning (CPU cost): architecture and epochs are fixed by the pilot on validation. Noise grids and β selection sets are provisional until then. The CIFAR-10 test split has not been read.
