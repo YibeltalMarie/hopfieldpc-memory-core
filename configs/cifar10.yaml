@@ -5,8 +5,11 @@
 # model and epochs: fixed by the validation-only pilot (2026-11-14, seed 0):
 # resnet18 had the highest selection score (0.550 at epoch 21; rule: best
 # epoch rounded up to a multiple of 5). lr and batch_size kept at their defaults.
-# PROVISIONAL: the noise grids and beta_selection_sets, to be fixed from the
-# validation curves of the trained backbones before any CIFAR-10 test evaluation.
+# Noise grids and beta_selection_sets: fixed by benchmarks.noise_calibration on
+# validation (2026-11-14; grid ends at the first level with mean accuracy <= 0.20,
+# occlusion capped at 24 px; 6 levels in equal accuracy steps).
+# FROZEN: any change before the CIFAR-10 test evaluation must be logged as a
+# protocol change in docs/experiment_log.md.
 dataset: cifar10
 seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 data_dir: "data"
@@ -36,16 +39,15 @@ center_prototypes: true
 prototypes_per_class: 8
 # beta* = argmax of mean validation head_acc over these sets; levels deliberately
 # not in the noise grids below.
-beta_selection_sets: [["clean", 0], ["gaussian", 0.12], ["salt_pepper", 0.03]]
+beta_selection_sets: [["clean", 0], ["gaussian", 0.06], ["salt_pepper", 0.02]]
 beta_values: [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
 s1_beta: 10000.0
 num_updates_values: [1, 2, 3, 5]
 
-# Noise grids (each starts at the clean level 0). CIFAR-10 backbones degrade at
-# far lower noise than MNIST ones, hence the smaller levels.
-gaussian_sigmas: [0.0, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3]
-salt_pepper_probs: [0.0, 0.01, 0.02, 0.05, 0.1, 0.2]
-occlusion_sizes: [0, 8, 12, 16]
+# Noise grids (calibrated; validation accuracy at the top level about 0.18-0.27).
+gaussian_sigmas: [0.0, 0.04, 0.05, 0.07, 0.08, 0.12]
+salt_pepper_probs: [0.0, 0.01, 0.015, 0.025, 0.045, 0.115]
+occlusion_sizes: [0, 12, 16, 18, 20, 24]
 noisy_sigma: 0.1
 placements: ["embedding"]
 

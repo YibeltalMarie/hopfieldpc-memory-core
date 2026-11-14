@@ -319,3 +319,31 @@ cat >> docs/experiment_log.md <<'EOF'
 - **Rule, fixed before the run:** highest validation selection score at best epoch (tie within 0.5 pp → cheaper network); epochs = best epoch rounded up to a multiple of 5. **Decision: resnet18, 25 epochs** (about 3.4 GPU hours for 10 seeds).
 - **Observations:** the selection score fluctuates strongly between epochs under the constant learning rate (cnn_small 0.41–0.49), so single "best epochs" for the CNNs are noise; resnet18 plateaus from about epoch 10 (score 0.49–0.55) and epoch 25 lies inside the plateau. Accuracy at the β-selection noise levels averages about 0.37, so the current noise grids are probably too harsh at the top.
 - **Rule for the noise grids (fixed now, applied to the trained backbones' validation curves):** each grid runs from clean to the first level where mean validation accuracy reaches about 0.20, in about 6 levels; β-selection levels near the middle of each grid and not on it. The CIFAR-10 test split has still not been read.
+
+## 2026-11-14 — CIFAR-10 backbones trained; noise grids calibrated and config frozen
+
+- **Backbones:** 10 seeds of ResNet-18, 25 epochs (19 min per seed on GPU). Validation clean accuracy 0.894 ± 0.011 (0.879–0.912).
+- **Calibration** (`benchmarks/noise_calibration.py`, validation only, the rule logged before the ResNet-18 curves were seen): dense curves over Gaussian σ 0–0.20, salt-and-pepper 0–0.15, occlusion 0–24 px.
+
+| Noise | Grid | Accuracy along the grid | β-selection level |
+| --- | --- | --- | --- |
+| Gaussian | 0, 0.04, 0.05, 0.07, 0.08, 0.12 | 0.894 → 0.183 | 0.06 (0.521) |
+| Salt-and-pepper | 0, 0.01, 0.015, 0.025, 0.045, 0.115 | 0.894 → 0.200 | 0.02 (0.550) |
+| Occlusion | 0, 12, 16, 18, 20, 24 | 0.894 → 0.265 (floor not reached at the 24 px cap) | — (held out of β tuning) |
+
+- **`configs/cifar10.yaml` is now frozen** (model, training, grids, β-selection sets). The CIFAR-10 test split has still not been read. Next: validation-only screening of the existing construction strategies with an all-training-embeddings reference (headroom).
+EOF%%bash
+cat >> docs/experiment_log.md <<'EOF'
+
+## 2026-11-14 — CIFAR-10 backbones trained; noise grids calibrated and config frozen
+
+- **Backbones:** 10 seeds of ResNet-18, 25 epochs (19 min per seed on GPU). Validation clean accuracy 0.894 ± 0.011 (0.879–0.912).
+- **Calibration** (`benchmarks/noise_calibration.py`, validation only, the rule logged before the ResNet-18 curves were seen): dense curves over Gaussian σ 0–0.20, salt-and-pepper 0–0.15, occlusion 0–24 px.
+
+| Noise | Grid | Accuracy along the grid | β-selection level |
+| --- | --- | --- | --- |
+| Gaussian | 0, 0.04, 0.05, 0.07, 0.08, 0.12 | 0.894 → 0.183 | 0.06 (0.521) |
+| Salt-and-pepper | 0, 0.01, 0.015, 0.025, 0.045, 0.115 | 0.894 → 0.200 | 0.02 (0.550) |
+| Occlusion | 0, 12, 16, 18, 20, 24 | 0.894 → 0.265 (floor not reached at the 24 px cap) | — (held out of β tuning) |
+
+- **`configs/cifar10.yaml` is now frozen** (model, training, grids, β-selection sets). The CIFAR-10 test split has still not been read. Next: validation-only screening of the existing construction strategies with an all-training-embeddings reference (headroom).
