@@ -307,3 +307,15 @@ cat >> docs/experiment_log.md <<'EOF'
 
 - **Code:** `benchmarks/cifar10_model.py` (CNN and CIFAR ResNet-18 encoders with training-split normalization buffers; crop + flip augmentation for training only), `benchmarks/cifar10_baseline.py` (config, cached frozen backbones, per-seed runs, validation-only report), `benchmarks/cifar10_pilot.py` (architecture pilot, validation only), `configs/cifar10.yaml`.
 - **Decisions:** backbone trained with the shared Adam loop (comparability with MNIST, code reuse); no grid tuning (CPU cost): architecture and epochs are fixed by the pilot on validation. Noise grids and β selection sets are provisional until then. The CIFAR-10 test split has not been read.
+
+## 2026-11-14 — CIFAR-10 architecture pilot (validation only, seed 0, GPU)
+
+| Network | Params | s / epoch | Best selection score (epoch) | Val clean, epochs 26–30 |
+| --- | --- | --- | --- | --- |
+| cnn_small | 0.30 M | 6 | 0.494 (5) | 0.84–0.86 |
+| cnn_wide | 1.16 M | 14 | 0.496 (4) | 0.85–0.89 |
+| resnet18 | 11.2 M | 49 | 0.550 (21) | 0.90–0.91 |
+
+- **Rule, fixed before the run:** highest validation selection score at best epoch (tie within 0.5 pp → cheaper network); epochs = best epoch rounded up to a multiple of 5. **Decision: resnet18, 25 epochs** (about 3.4 GPU hours for 10 seeds).
+- **Observations:** the selection score fluctuates strongly between epochs under the constant learning rate (cnn_small 0.41–0.49), so single "best epochs" for the CNNs are noise; resnet18 plateaus from about epoch 10 (score 0.49–0.55) and epoch 25 lies inside the plateau. Accuracy at the β-selection noise levels averages about 0.37, so the current noise grids are probably too harsh at the top.
+- **Rule for the noise grids (fixed now, applied to the trained backbones' validation curves):** each grid runs from clean to the first level where mean validation accuracy reaches about 0.20, in about 6 levels; β-selection levels near the middle of each grid and not on it. The CIFAR-10 test split has still not been read.
