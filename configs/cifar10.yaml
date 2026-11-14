@@ -2,9 +2,11 @@
 # Used by benchmarks.cifar10_baseline, benchmarks.cifar10_pilot and, through
 # benchmarks.runs, every memory benchmark (pass --config configs/cifar10.yaml).
 #
-# PROVISIONAL until the validation-only pilot: model, epochs, lr, batch_size,
-# the noise grids and beta_selection_sets. They must be fixed (and this note
-# updated) before any CIFAR-10 test evaluation.
+# model and epochs: fixed by the validation-only pilot (2026-11-14, seed 0):
+# resnet18 had the highest selection score (0.550 at epoch 21; rule: best
+# epoch rounded up to a multiple of 5). lr and batch_size kept at their defaults.
+# PROVISIONAL: the noise grids and beta_selection_sets, to be fixed from the
+# validation curves of the trained backbones before any CIFAR-10 test evaluation.
 dataset: cifar10
 seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 data_dir: "data"
@@ -20,11 +22,10 @@ test_subset: null
 # from each seed's training split; augmentation = random crop (pad 4) + flip,
 # training only.
 model:
-  name: cnn               # cnn | resnet18
-  widths: [32, 64, 128]   # cnn only
+  name: resnet18          # cnn | resnet18 (cnn also takes widths)
   embed_dim: 64
 augment: true
-epochs: 30
+epochs: 25
 batch_size: 128
 lr: 0.001
 eval_batch_size: 1000

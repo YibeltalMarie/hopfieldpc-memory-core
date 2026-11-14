@@ -86,7 +86,7 @@ def test_augment_batch_is_a_seeded_crop_or_flipped_crop() -> None:
 
 def test_default_and_quick_configs_load(tmp_path) -> None:
     cfg = cb.load_config(cb.DEFAULT_CONFIG_PATH)
-    assert cfg["dataset"] == "cifar10" and cfg["model"]["name"] == "cnn" and cfg["augment"] is True
+    assert cfg["dataset"] == "cifar10" and cfg["model"]["name"] == "resnet18" and cfg["augment"] is True
     assert cfg["placements"] == ["embedding"] and cfg["baseline_tuning"] is None
     quick = cb.load_config(cb.DEFAULT_CONFIG_PATH, quick=True)
     assert quick["seeds"] == [0] and quick["train_subset"] == 2000 and quick["quick"] is True
