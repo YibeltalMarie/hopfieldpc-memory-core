@@ -353,3 +353,11 @@ cat >> docs/experiment_log.md <<'EOF'
 - **Code:** `benchmarks/memory_screening.py`. Designs: no memory, class means, k-means / facility location / random at 2, 4, 8, 16 per class, all training embeddings (offline reference, not an upper bound).
 - **Protocol:** β per design on the tuning half of validation (config sets; grid extended to 10 000), metrics on the evaluation half; screening score = mean of the three noise AUCs on the frozen grids; clean accuracy as a guard; paired by seed against k-means k = 8; exploratory, no multiplicity correction. Test split not read.
 - **Headroom decision bands:** all_train − k-means k = 8 ≥ 1.0 pp → go; 0.5–1.0 pp → go with modest expectations; < 0.5 pp → report to the leader before building new methods.
+
+## 2026-11-15 — CIFAR-10 screening results (validation only)
+
+- **Official run** (the original backbones, the ones the noise grids were calibrated on) and a **replicate** (backbones accidentally retrained when Drive was unmounted; same seeds and settings, not bit-identical) agree on every conclusion.
+- **Headroom:** all_train − k-means k = 8 on noise AUC = −0.15 pp [−0.46, +0.15] (replicate −0.11). Band < 0.5 pp → **report to the leader** before building new selection methods. This bounds selection among *clean* training embeddings only, not memories storing other content (noise-aware patterns, region means) or using another similarity.
+- **Facility location:** ties k-means at 2–16 patterns per class (|Δ| ≤ 0.14 pp, signs inconsistent across runs); beats class means at 8 (+0.45 pp, 8/2) and 16 (+0.56 pp, 9/1) and random (+0.80 to +1.42 pp, 9/1 to 10/0).
+- **Memory vs none:** k-means k = 8 +0.81 pp noise AUC, +1.00 pp clean accuracy. β* is unstable across runs, so the β curves are flat.
+- **Next (proposed):** a nearest-neighbour diagnostic (is the true class nearby for noisy queries?) and noise-aware construction (facility location variants A–C, compared with noise-aware k-means); whitening and memory placement as further directions. The test split has not been read.
