@@ -361,3 +361,16 @@ cat >> docs/experiment_log.md <<'EOF'
 - **Facility location:** ties k-means at 2–16 patterns per class (|Δ| ≤ 0.14 pp, signs inconsistent across runs); beats class means at 8 (+0.45 pp, 8/2) and 16 (+0.56 pp, 9/1) and random (+0.80 to +1.42 pp, 9/1 to 10/0).
 - **Memory vs none:** k-means k = 8 +0.81 pp noise AUC, +1.00 pp clean accuracy. β* is unstable across runs, so the β curves are flat.
 - **Next (proposed):** a nearest-neighbour diagnostic (is the true class nearby for noisy queries?) and noise-aware construction (facility location variants A–C, compared with noise-aware k-means); whitening and memory placement as further directions. The test split has not been read.
+
+
+## 2026-11-15 - Phase 1 decision criteria fixed (before new methods)
+
+Decision rules for screening new construction methods are committed in
+docs/phase1_criteria.md before any of them is run: primary metric noise AUC
+vs k-means at the same k (paired by seed); bands Pass (>= +0.3 pp),
+Weak positive (+0.1 to +0.3 pp), Fail (< +0.1 pp), each with >= 7/10 seeds
+positive, >= 2 budgets and clean-accuracy loss <= 0.3 pp; at most 2 finalists;
+combination stage only from >= 2 non-failing components; Stage 1 diagnostic
+rules for CA-acc and noise-aware FL. Scope: construction only; RQ2
+maintenance code removed (preserved at tag rq2-memory-maintenance).
+The criteria reference proposal v1.1 (2026-11-15).
