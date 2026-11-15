@@ -374,3 +374,21 @@ combination stage only from >= 2 non-failing components; Stage 1 diagnostic
 rules for CA-acc and noise-aware FL. Scope: construction only; RQ2
 maintenance code removed (preserved at tag rq2-memory-maintenance).
 The criteria reference proposal v1.1 (2026-11-15).
+
+
+## 2026-11-15 - Stage 1 diagnostics: implementation and D1 clarification (before the full run)
+
+benchmarks/construction_diagnostics.py implements the Stage 1 checks
+(training data and the validation-tune half only; test split not read):
+D1 noise-aware premise (kappa = 20 nearest clean training embeddings, centred
+cosine; hit / top1 / purity; plus a pool with one corrupted copy of every
+training image, training noise stream 2, type uniform over Gaussian and
+salt-and-pepper, level uniform up to the largest calibrated grid level),
+D2 training nearest-pattern accuracy of the k-means memory (k = 2, 4, 8, 16),
+D3 boundary scores, density proxy, within-class Spearman(B, 1/rho) and the
+validation-tune boundary distribution against the training set.
+
+Clarification of the D1 rule in docs/phase1_criteria.md, fixed before any
+diagnostic number was seen: "corrupted queries" means the hit rate averaged
+over the nonzero levels of the Gaussian and salt-and-pepper grids; occlusion
+is reported but not used for the decision. Comparison uses seed means.
