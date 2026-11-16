@@ -78,3 +78,22 @@ Link: https://drive.google.com/file/d/1D-RjCMVkYPWutMEmxCk40-Y0DcHtaIvm/view?usp
 These criteria refer to that version. If a later version of the proposal
 differs, this file takes precedence for Phase 1 decisions until it is
 explicitly amended by a new commit.
+
+
+## Amendment 1 (2026-11-16): rarity score for rarity-weighted FL
+
+Reason: the Stage 1 diagnostics (CIFAR-10, 10 seeds) showed the density
+proxy rho is compressed into about [0.98, 0.998] (median 0.988). The
+proposal v1.1 weight (rho + eps)^(-alpha) with alpha <= 2 then varies by
+only about 4% across a class, i.e. it is effectively unweighted.
+
+Change, made before any rarity-weighted result exists:
+- Rarity score R_i = within-class rank of 1/rho_i scaled to [0, 1]
+  (average ranks for ties; most crowded = 0, rarest = 1).
+- Weight w_i = 1 + lambda_r * R_i, lambda_r in {0.5, 1, 2, 4}.
+- Label-consistency filter unchanged: R_i = 0 if B_i > tau_B.
+- Percentile clipping is no longer needed (ranks are bounded); the
+  density proxy, kappa grid and all other rules are unchanged.
+- Weights stay fixed and positive, so weighted FL keeps its (1 - 1/e)
+  guarantee for its own objective. The same R_i is used in the
+  combination stage, as in proposal Section 5.5.

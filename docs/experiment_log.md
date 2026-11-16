@@ -392,3 +392,30 @@ Clarification of the D1 rule in docs/phase1_criteria.md, fixed before any
 diagnostic number was seen: "corrupted queries" means the hit rate averaged
 over the nonzero levels of the Gaussian and salt-and-pepper grids; occlusion
 is reported but not used for the decision. Comparison uses seed means.
+
+
+## 2026-11-16 - Stage 1 diagnostics: results (CIFAR-10, 10 seeds, validation-tune only)
+
+Run: python -m benchmarks.construction_diagnostics --config configs/cifar10.yaml
+--reports-dir <Drive>/hopfield_reports/cifar10 (cached backbones; test split not read).
+The D1 clarification was committed (121163c) before this run.
+
+Decisions (rules in docs/phase1_criteria.md):
+- D1 not triggered -> keep noise-aware FL. Clean hit@20 0.967 +- 0.002;
+  corrupted hit (Gaussian + salt-and-pepper levels) 0.652 +- 0.019.
+  With one noisy copy per training image in the pool, hit returns to
+  0.90-0.95 and top1 rises (e.g. Gaussian 0.08: 0.35 -> 0.51). Occlusion
+  is not helped (20 px: hit 0.67 -> 0.68, top1 0.42 -> 0.40). Clean top1
+  falls slightly with the noisy pool (0.896 -> 0.872): clean-accuracy risk.
+- D2 not triggered -> keep CA-acc. k-means training nearest-pattern
+  accuracy 0.963-0.967 for k = 2-16 (k = 8: 0.966 +- 0.003).
+- D3 below 0.7 -> boundary and rarity not redundant. Within-class
+  Spearman(B, 1/rho) 0.51 +- 0.02 (max class 5: 0.67).
+
+Descriptive: 17% of training points have B > 0 (mean B 0.047; 99th pct
+0.9); validation-tune points against the training set have mean B 0.107
+and 24% B > 0 (encoder bias: training neighbourhoods are cleaner).
+Most mixed classes: 3 (cat, 38% B > 0) and 5 (dog, 30%); least: 1 (7%).
+Density proxy rho is compressed (about 0.98-0.998) -> Amendment 1 to
+docs/phase1_criteria.md (rank-based rarity score), made before any
+rarity-weighted result exists.
