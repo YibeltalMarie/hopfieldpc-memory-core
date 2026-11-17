@@ -137,14 +137,16 @@ def evaluate(net: MnistNet, view: ValView, idx: torch.Tensor, grids: dict[str, l
     return out
 
 
-def run_screening(cfg: dict[str, Any], *, retrain: bool = False) -> dict[str, Any]:
+def run_screening(cfg: dict[str, Any], *, retrain: bool = False, builder: Any = None,
+                  names: list[str] | None = None) -> dict[str, Any]:
+    """Screen the designs of ``builder`` (default: this module's designs) under the Phase 1 protocol."""
     device = resolve_device(cfg["device"])
     data = load_data(cfg)
     tune_backbone(cfg, data, device, retrain=retrain)   # MNIST: restores the cached tuned settings
     betas = list(cfg["beta_values"]) + [b for b in EXTRA_BETAS if b not in cfg["beta_values"]]
     sel_sets = cfg["beta_selection_sets"]
     grids = noise_grids(cfg)
-    names = design_names()
+    names = list(names) if names is not None else design_names()
     per_seed: list[dict[str, Any]] = []
     curves: dict[str, list[list[float]]] = {n: [] for n in names if n != "no_memory"}
     needed = [(k, float(lv)) for k, lv in sel_sets] + [(k, float(lv)) for k, levels in grids.items() for lv in levels]
@@ -152,7 +154,7 @@ def run_screening(cfg: dict[str, Any], *, retrain: bool = False) -> dict[str, An
         run = prepare_run(cfg, data, seed, device, retrain=retrain)
         tune, ev = split_validation(run.z_val.shape[0], seed)
         view = ValView(run, needed)
-        designs = build_designs(run, device)
+        designs = (builder or build_designs)(run, device)
         nets = {n: make_net(run, d) for n, d in designs.items()}
         for name, net in nets.items():
             curve = []

@@ -419,3 +419,21 @@ Most mixed classes: 3 (cat, 38% B > 0) and 5 (dog, 30%); least: 1 (7%).
 Density proxy rho is compressed (about 0.98-0.998) -> Amendment 1 to
 docs/phase1_criteria.md (rank-based rarity score), made before any
 rarity-weighted result exists.
+
+
+## 2026-11-16 - Stage 2 (selection x representation): design fixed before the full run
+
+benchmarks/representation_screening.py; protocol of memory_screening (beta on
+the validation-tune half, metrics on the validation-eval half, paired by seed,
+test split not read). Budgets k = 2, 4, 8, 16. Designs: kmeans (centroids),
+kmeans_medoid (real embedding closest to each centroid, own cluster),
+facility_location (real), facility_location_rm (region means, one
+centred-cosine assignment step, proposal Eq. 5.14), facility_location_rm_euc
+(Euclidean assignment; ablation A8), random, random_rm, no_memory.
+
+Decision: only facility_location_rm is a candidate method and is judged by
+the Phase 1 bands (benchmarks/phase1_bands.py, implementing
+docs/phase1_criteria.md) against kmeans at the same k. All other comparisons
+(averaging effects per selection rule, FL vs k-means regions, Euclidean vs
+cosine assignment) are descriptive. memory_screening.run_screening gained
+optional builder/names arguments; default behaviour unchanged (existing tests).
