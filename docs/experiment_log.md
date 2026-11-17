@@ -437,3 +437,28 @@ docs/phase1_criteria.md) against kmeans at the same k. All other comparisons
 (averaging effects per selection rule, FL vs k-means regions, Euclidean vs
 cosine assignment) are descriptive. memory_screening.run_screening gained
 optional builder/names arguments; default behaviour unchanged (existing tests).
+
+
+## 2026-11-17 - Stage 2 results: selection x representation (CIFAR-10, 10 seeds, validation only)
+
+Design fixed in 16ae4da before this run (correction: the criteria module is
+benchmarks/screening_criteria.py; the earlier entry may name phase1_bands.py).
+Cached backbones; test split not read.
+
+Decision: facility_location_rm vs kmeans at equal k -> band FAIL.
+Noise AUC diff (pp): k2 -0.05 [-0.30, +0.19]; k4 +0.01 [-0.29, +0.31];
+k8 +0.05 [-0.17, +0.27]; k16 +0.11 [-0.13, +0.34] (weak at k16 only).
+Clean diff: -0.30, -0.35, -0.16, -0.08 pp. Not re-tuned (criteria).
+
+Descriptive (noise AUC, mean - real): random regions +1.43 / +0.71 / +0.58 /
++0.35 pp (10/0, 10/0, 10/0, 9/1); k-means regions (centroid - medoid)
++0.17 / -0.01 / +0.26 / +0.25; FL regions +0.09 / +0.01 / +0.02 / +0.04.
+FL vs k-means regions (both means): tie at every k. Euclidean vs cosine
+assignment: no difference (|diff| <= 0.05 pp).
+
+Interpretation: averaging rescues atypical representatives (random) but FL
+picks are already central, so averaging adds nothing; the MNIST averaging
+gain for FL does not replicate on CIFAR-10. Memories built from clean
+training embeddings (k-means, FL, region means) converge at noise AUC about
+0.538 for k = 8-16. Decision for later stages: weighted FL variants store real
+picks (primary); region means are a secondary descriptive variant.
