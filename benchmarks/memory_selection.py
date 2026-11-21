@@ -76,6 +76,7 @@ def greedy_facility_location(
     k: int,
     *,
     eligible: torch.Tensor | None = None,
+    weights: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Greedily pick k candidate columns of q [N_ref, N_cand] maximising F.
 
@@ -84,6 +85,9 @@ def greedy_facility_location(
     Each step adds the eligible, unselected candidate with the largest gain;
     exact ties go to the lowest index (deterministic). ``eligible`` [N_cand]
     bool restricts who may be selected; every reference row is still covered.
+    ``weights`` [N_ref] >= 0 (optional) gives the weighted objective
+    F_w(S) = sum_i w_i max_{m in S} q[i, m]; fixed nonnegative weights keep F_w
+    monotone submodular, so the greedy guarantee is unchanged. None = all ones.
 
     Returns (indices [k] in selection order, gains [k]).
     """
@@ -100,11 +104,16 @@ def greedy_facility_location(
         raise ValueError(f"k ({k}) must be between 1 and the number of eligible candidates "
                          f"({int(eligible.sum().item())}).")
 
+    if weights is not None:
+        if weights.shape != (n_ref,) or not torch.isfinite(weights).all() or (weights < 0).any():
+            raise ValueError(f"weights must be a finite nonnegative tensor of shape [{n_ref}].")
+        weights = weights.to(device=q.device, dtype=q.dtype)
     best = torch.zeros(n_ref, dtype=q.dtype, device=q.device)
     blocked = (~eligible).to(q.device)
     indices, gains = [], []
     for _ in range(k):
-        gain = (q - best[:, None]).clamp_(min=0.0).sum(dim=0)
+        improvement = (q - best[:, None]).clamp_(min=0.0)
+        gain = improvement.sum(dim=0) if weights is None else weights @ improvement
         gain[blocked] = -torch.inf
         j = int(torch.argmax(gain).item())  # first maximum -> lowest index on ties
         indices.append(j)
@@ -200,3 +209,29 @@ def class_coverage(
             raise ValueError(f"memory has no pattern of class {c}.")
         out[rows] = coverage_similarity(z[rows], patterns, center).max(dim=1).values.cpu()
     return out
+
+
+def noise_aware_selection(
+    z_clean: torch.Tensor,
+    z_noisy: torch.Tensor,
+    k: int,
+    gamma: float,
+    center: torch.Tensor | None,
+    *,
+    allow_noisy: bool,
+    device: torch.device = torch.device("cpu"),
+) -> torch.Tensor:
+    """Noise-aware facility location for one class (foundation proposal, Eq. 5.2).
+
+    Reference set = clean + corrupted embeddings with weights 1 and ``gamma``:
+        F(S) = sum_i q(z_i, S) + gamma * sum_i q(z~_i, S).
+    Candidates are the clean rows (variant A, allow_noisy=False) or clean + corrupted
+    rows (variant B, allow_noisy=True). gamma = 0 recovers standard facility location.
+    Returns the selected patterns [k, D] in selection order (nested across k).
+    """
+    ref = torch.cat([z_clean, z_noisy])
+    cand = ref if allow_noisy else z_clean
+    weights = torch.cat([torch.ones(z_clean.shape[0]), torch.full((z_noisy.shape[0],), float(gamma))])
+    q = coverage_similarity(ref.to(device), cand.to(device), None if center is None else center.to(device))
+    idx, _ = greedy_facility_location(q, k, weights=weights.double())
+    return cand[idx.cpu()].clone()

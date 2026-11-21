@@ -40,7 +40,8 @@ import torch
 
 from benchmarks.memory_diagnostics import paired_summary, split_validation
 from benchmarks.memory_selection import nested_prefix, select_class_memory
-from benchmarks.mnist_baseline import MnistNet, mean_std, noise_grids, resolve_device, robust_auc
+from benchmarks.mnist_baseline import (MnistNet, corrupt_images, corruption_seed, encode, mean_std, noise_grids,
+                                      resolve_device, robust_auc)
 from benchmarks.mnist_prototype_retrieval import HopfieldBridge, build_memory, select_beta
 from benchmarks.runs import build_arg_parser, config_from_args, load_data, prepare_run, tune_backbone
 
@@ -49,6 +50,9 @@ REFERENCE_DESIGN = "kmeans_k8"
 OFFLINE_REFERENCE = "all_train"
 EXTRA_BETAS = (2000.0, 5000.0, 10000.0)   # beyond the config grid: large beta ~ nearest stored pattern
 GO_PP, MODEST_PP = 1.0, 0.5
+TRAIN_EVAL_SIZE = 5000      # training-split queries per seed (descriptive column)
+TRAIN_EVAL_STREAM = 3       # noise stream of those queries: 0 test, 1 validation, 2 noisy copies for construction
+TRAIN_EVAL_SALT = 7_331     # seed offset of the training-query sample
 
 
 def design_names() -> list[str]:
@@ -110,6 +114,42 @@ class ValView:
         return self.z_val if kind == "clean" or level == 0 else self._emb[(kind, float(level))]
 
 
+class TrainView:
+    """Clean and corrupted embeddings of a fixed, seeded sample of training images (descriptive column).
+
+    Same interface as ValView (``z_val`` holds the clean query embeddings) so ``evaluate``
+    applies unchanged. Corruptions use noise stream TRAIN_EVAL_STREAM, so no query is one
+    of the corrupted training copies used for noise-aware construction (stream 2).
+    """
+
+    @torch.no_grad()
+    def __init__(self, run: Any, grids: dict[str, list[float]], size: int = TRAIN_EVAL_SIZE) -> None:
+        n = run.z_train.shape[0]
+        g = torch.Generator().manual_seed(run.seed + TRAIN_EVAL_SALT)
+        self.rows = torch.randperm(n, generator=g)[:min(size, n)]
+        images = run.splits.train_images[self.rows]
+        self.z_val, self.labels = run.z_train[self.rows], run.splits.train_labels[self.rows]
+        self.batch_size, self.device = run.batch_size, run.device
+        self._emb = {}
+        for kind, levels in grids.items():
+            for level in levels:
+                if level == 0:
+                    continue
+                gen = torch.Generator().manual_seed(corruption_seed(run.seed, kind, level, stream=TRAIN_EVAL_STREAM))
+                x = corrupt_images(images, kind, level, gen)
+                self._emb[(kind, float(level))] = encode(run.net.encoder, x, batch_size=run.batch_size,
+                                                         device=run.device)
+
+    def emb(self, kind: str, level: float) -> torch.Tensor:
+        return self.z_val if kind == "clean" or level == 0 else self._emb[(kind, float(level))]
+
+
+def stored_fraction(queries: torch.Tensor, memory: torch.Tensor) -> float:
+    """Fraction of query embeddings that are (numerically) stored patterns themselves."""
+    nearest = torch.cdist(queries.double(), memory.double()).min(dim=1).values
+    return (nearest < 1e-6).float().mean().item()
+
+
 @torch.inference_mode()
 def accuracy(net: MnistNet, z: torch.Tensor, labels: torch.Tensor, batch_size: int, device: torch.device) -> float:
     """Head accuracy on embeddings z (logits only; retrieval weights are not collected)."""
@@ -138,8 +178,14 @@ def evaluate(net: MnistNet, view: ValView, idx: torch.Tensor, grids: dict[str, l
 
 
 def run_screening(cfg: dict[str, Any], *, retrain: bool = False, builder: Any = None,
-                  names: list[str] | None = None) -> dict[str, Any]:
-    """Screen the designs of ``builder`` (default: this module's designs) under the Phase 1 protocol."""
+                  names: list[str] | None = None, train_eval: bool = False,
+                  train_eval_exclude: tuple[str, ...] = (OFFLINE_REFERENCE,)) -> dict[str, Any]:
+    """Screen the designs of ``builder`` (default: this module's designs) under the Phase 1 protocol.
+
+    train_eval=True adds a descriptive training-split column: every design (except
+    ``train_eval_exclude``) is also evaluated on TrainView queries at its validation-selected
+    beta. It never enters beta selection or any decision.
+    """
     device = resolve_device(cfg["device"])
     data = load_data(cfg)
     tune_backbone(cfg, data, device, retrain=retrain)   # MNIST: restores the cached tuned settings
@@ -164,7 +210,11 @@ def run_screening(cfg: dict[str, Any], *, retrain: bool = False, builder: Any = 
                         for k, lv in sel_sets]
                 curve.append(sum(accs) / len(accs))
             curves[name].append(curve)
+        train_view = TrainView(run, grids) if train_eval else None
+        stored = ({n: stored_fraction(train_view.z_val, d["memory"]) for n, d in designs.items()
+                   if n not in train_eval_exclude} if train_eval else {})
         per_seed.append({"seed": seed, "view": view, "ev": ev, "nets": nets, "baseline": run.net,
+                         "train_view": train_view, "stored": stored,
                          "build_s": {n: d["build_s"] for n, d in designs.items()},
                          "sizes": {n: int(d["memory"].shape[0]) for n, d in designs.items()}})
         del run   # frees the seed's image tensors; only embeddings are kept
@@ -173,12 +223,22 @@ def run_screening(cfg: dict[str, Any], *, retrain: bool = False, builder: Any = 
     beta_star = {n: select_beta(betas, c)[0] for n, c in curves.items()}
     print("beta*: " + ", ".join(f"{n}={b:g}" for n, b in beta_star.items()))
     results: dict[str, list[dict[str, Any]]] = {n: [] for n in names}
+    train_results: dict[str, list[dict[str, Any]]] = (
+        {n: [] for n in names if n not in train_eval_exclude} if train_eval else {})
     for state in per_seed:
         view, ev = state["view"], state["ev"]
         results["no_memory"].append(evaluate(state["baseline"], view, ev, grids))
         for name, net in state["nets"].items():
             net.bridge.set_retrieval(beta=beta_star[name])
             results[name].append(evaluate(net, view, ev, grids))
+        if train_eval:
+            tv = state["train_view"]
+            rows = torch.arange(tv.z_val.shape[0])
+            train_results["no_memory"].append(evaluate(state["baseline"], tv, rows, grids))
+            for name, net in state["nets"].items():
+                if name not in train_eval_exclude:
+                    net.bridge.set_retrieval(beta=beta_star[name])
+                    train_results[name].append(evaluate(net, tv, rows, grids))
         print(f"  seed {state['seed']}: evaluated on {ev.numel()} evaluation images")
 
     return {
@@ -187,7 +247,19 @@ def run_screening(cfg: dict[str, Any], *, retrain: bool = False, builder: Any = 
         "beta_selection_sets": [list(s) for s in sel_sets], "results": results,
         "build_s": {n: [s["build_s"][n] for s in per_seed] for n in names if n != "no_memory"},
         "memory_size": {n: per_seed[0]["sizes"][n] for n in names if n != "no_memory"},
+        "train_results": train_results,
+        "train_stored_fraction": {n: [s["stored"][n] for s in per_seed] for n in train_results if n != "no_memory"},
     }
+
+
+def memory_gaps(raw: dict[str, Any], metric: str = "noise_auc") -> dict[str, dict[str, Any]]:
+    """Per design: paired (train - val)_design - (train - val)_no_memory over seeds (descriptive)."""
+    tr, va = raw["train_results"], raw["results"]
+    if not tr:
+        return {}
+    base = [t[metric] - v[metric] for t, v in zip(tr["no_memory"], va["no_memory"])]
+    return {n: paired_summary([(t[metric] - v[metric]) - b for t, v, b in zip(tr[n], va[n], base)])
+            for n in tr if n != "no_memory"}
 
 
 def comparisons(raw: dict[str, Any], metric: str = "noise_auc") -> dict[str, dict[str, Any]]:

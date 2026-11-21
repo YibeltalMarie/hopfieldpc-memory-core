@@ -462,3 +462,34 @@ gain for FL does not replicate on CIFAR-10. Memories built from clean
 training embeddings (k-means, FL, region means) converge at noise AUC about
 0.538 for k = 8-16. Decision for later stages: weighted FL variants store real
 picks (primary); region means are a secondary descriptive variant.
+
+
+## 2026-11-21 - Stage 3 (noise-aware facility location): design fixed before the full run
+
+Order change (decided before any noise-aware result): noise-aware FL is evaluated
+before boundary/rarity weighting, because D1 supported its premise and Stage 2
+showed that memories built from clean embeddings converge. If it reaches Pass,
+it proceeds to MNIST Phase 1 and Phase 2 on both datasets before the PR; the
+other approaches follow as separate proposals. Otherwise the roadmap continues.
+
+benchmarks/noise_aware_screening.py; protocol of memory_screening (beta on the
+validation-tune half, metrics on the validation-eval half, paired by seed, test
+split not read). Budgets k = 2, 4, 8, 16.
+Corrupted copies: one per training image, type uniform over Gaussian and
+salt-and-pepper, level uniform on [0, largest calibrated grid level], training
+noise stream 2; occlusion never used in construction.
+Designs: no_memory, kmeans, facility_location, na_kmeans (k-means on clean +
+corrupted; attribution control), na_fl_A (clean candidates), na_fl_B (clean +
+corrupted candidates), na_fl_C (region means of A over clean + corrupted), each
+na_fl variant with gamma in {0.25, 0.5, 1}.
+Selection (tune half only): gamma per (variant, k) = best tune score at the
+design's own beta* (ties -> smaller gamma); candidate variant = best tune score
+averaged over budgets.
+Decision: candidate vs plain kmeans at equal k, bands of
+docs/phase1_criteria.md (benchmarks/screening_criteria.py). Descriptive: other
+variants, na_kmeans attribution, Gaussian / salt-and-pepper / occlusion AUC.
+Training-split column (descriptive, never decisive): 5000 seeded training
+queries per seed, noise stream 3, beta from validation, memory gap relative to
+no_memory, fraction of queries that are stored patterns.
+Additions: memory_selection.greedy_facility_location(weights=None) and
+memory_screening.run_screening(train_eval=False); defaults unchanged.
