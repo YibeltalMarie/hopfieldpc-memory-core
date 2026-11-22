@@ -493,3 +493,46 @@ queries per seed, noise stream 3, beta from validation, memory gap relative to
 no_memory, fraction of queries that are stored patterns.
 Additions: memory_selection.greedy_facility_location(weights=None) and
 memory_screening.run_screening(train_eval=False); defaults unchanged.
+
+
+## 2026-11-22 - Backbone sets identified; Stage 3 results (official + replicate) and diagnostics
+
+Two CIFAR-10 backbone sets exist (same code, config and seeds; GPU training is
+not bit-reproducible). Stage 3 was first run, by mistake, in a second Colab
+account whose Drive holds the second set. md5 (first 10 hex) of backbone_seed0-9:
+- ORIGINAL set (primary; screening, Stage 1, Stage 2, official Stage 3), trained
+  2026-11-14 08:46-11:47: 8df928bbd1 d92c0dea84 6537a7a27d ed9e41dc52 2677c60a61
+  12edeef639 a62038ec51 a6feeaeae1 dd64861bec 20add149e6
+- REPLICATE set (replicate screening; replicate Stage 3), trained 2026-11-14
+  20:47-23:51: 9f264fce7d 1ada8dc399 4cf3c2180f 57113ef28d bd66ff49b6 78ebecdecc
+  ebfc1f4a0e f69145ee77 cd27893019 b60586f195
+The replicate Stage 3 reproduced the replicate screening's per-seed baselines
+exactly (deterministic given backbones). Every run now checks that Drive is
+mounted and prints the seed-0 md5 first.
+
+Stage 3 OFFICIAL (original set; code 986361a, pre-registered there): candidate
+variant A (gamma 0.25 at every k) vs kmeans -> band FAIL. Noise AUC diff (pp):
+-0.10 / +0.14 / +0.03 / -0.13 (k = 2/4/8/16; all CIs include 0). Clean diff:
+-0.64 (0/10), -1.17 (1/9), -0.85 (1/9), -0.38 (1/9) -> clean guard fails.
+A - kmeans Gaussian AUC +1.36 / +2.63 / +1.61 / +0.59 (9/1, 9/1, 9/1, 7/3);
+salt-and-pepper about -0.4 (5/5); occlusion -1.04 / -1.86 / -1.10 / -0.61
+(0/10, 0/10, 0/10, 1/9). A - na_kmeans +1.42 / +3.63 / +2.51 / +1.03 (10/0).
+na_kmeans, variants B and C: -1.2 to -3.5 vs kmeans. Plain FL - kmeans: tie.
+Memory gaps about 0. Not re-tuned.
+Stage 3 REPLICATE (replicate set, same code): FAIL with the same pattern.
+
+Diagnostics (descriptive; from the official raw.json):
+- No memory at any k exceeds both the best k-means clean accuracy and the best
+  k-means noise AUC (trade-off frontier).
+- Variant A vs kmeans at k = 8 by level: strong Gaussian (levels 3-5) +3.2 to
+  +3.9 pp (9-10/10); clean -0.85; mild salt-and-pepper and occlusion (levels
+  1-3) -1.2 to -1.7 pp. At k = 4: strong Gaussian +4.6 to +5.7; mild occlusion
+  -2.3 to -2.8.
+- Tune scores: standard FL (gamma = 0) best at every k; larger gamma worse.
+- Per-level oracle switch between kmeans and A (optimistic ceiling: knows the
+  level, selects on evaluation data): +0.52 / +1.01 / +0.61 / +0.35 pp noise
+  AUC, clean unchanged.
+Mechanism: a stored pattern is both key (matched) and value (returned); stored
+corrupted embeddings return corrupted vectors to the head. Next proposed
+method: key-value noise-aware FL (corrupted keys, clean values), to be
+pre-registered separately before any run. No PR for noise-aware FL.
