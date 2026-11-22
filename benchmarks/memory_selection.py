@@ -235,3 +235,65 @@ def noise_aware_selection(
     q = coverage_similarity(ref.to(device), cand.to(device), None if center is None else center.to(device))
     idx, _ = greedy_facility_location(q, k, weights=weights.double())
     return cand[idx.cpu()].clone()
+
+
+def key_value_selection(
+    z_clean: torch.Tensor,
+    z_noisy: torch.Tensor,
+    k: int,
+    gamma: float,
+    center: torch.Tensor | None,
+    *,
+    device: torch.device = torch.device("cpu"),
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Key-value noise-aware facility location for one class (foundation proposal, Section 5.3).
+
+    Keys are chosen exactly as variant B of ``noise_aware_selection`` (reference and
+    candidates = clean + corrupted rows, weights 1 and ``gamma``). Row i of ``z_noisy``
+    must be the corrupted copy of training image i, so every key has a source image.
+    Returns, in selection order (nested across k):
+        keys [k, D]     the selected clean or corrupted embeddings (matched by queries)
+        values [k, D]   the clean embedding of each key's source image (KV-S values)
+        is_noisy [k]    True where the key is a corrupted embedding
+    """
+    if z_noisy.shape != z_clean.shape:
+        raise ValueError(f"z_noisy must match z_clean row for row, got {tuple(z_noisy.shape)} "
+                         f"and {tuple(z_clean.shape)}.")
+    n = z_clean.shape[0]
+    ref = torch.cat([z_clean, z_noisy])
+    weights = torch.cat([torch.ones(n), torch.full((n,), float(gamma))])
+    q = coverage_similarity(ref.to(device), ref.to(device), None if center is None else center.to(device))
+    idx, _ = greedy_facility_location(q, k, weights=weights.double())
+    idx = idx.cpu()
+    return ref[idx].clone(), z_clean[idx % n].clone(), idx >= n
+
+
+def served_clean_means(
+    z_clean: torch.Tensor,
+    z_noisy: torch.Tensor,
+    keys: torch.Tensor,
+    gamma: float,
+    center: torch.Tensor | None,
+    *,
+    fallback: torch.Tensor,
+    device: torch.device = torch.device("cpu"),
+) -> torch.Tensor:
+    """KV-M values for one class: per key, the weighted mean clean source embedding of the points it serves.
+
+    Every clean and corrupted reference point is served by the key with the largest
+    q (first key on ties); a point contributes the clean embedding of its source image
+    with weight 1 (clean) or ``gamma`` (corrupted), as in the selection objective.
+    A key that serves no weight keeps its ``fallback`` value. Returns [len(keys), D].
+    """
+    n = z_clean.shape[0]
+    ref = torch.cat([z_clean, z_noisy])
+    src = torch.cat([z_clean, z_clean]).double()
+    w = torch.cat([torch.ones(n), torch.full((n,), float(gamma))]).double()
+    q = coverage_similarity(ref.to(device), keys.to(device), None if center is None else center.to(device))
+    owner = q.argmax(dim=1).cpu()
+    sums = torch.zeros(keys.shape[0], keys.shape[1], dtype=torch.float64).index_add_(0, owner, src * w[:, None])
+    mass = torch.zeros(keys.shape[0], dtype=torch.float64).index_add_(0, owner, w)
+    out = fallback.double().clone()
+    hit = mass > 0
+    out[hit] = sums[hit] / mass[hit].unsqueeze(1)
+    return out.to(keys.dtype)

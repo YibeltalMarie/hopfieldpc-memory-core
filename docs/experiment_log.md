@@ -536,3 +536,43 @@ Mechanism: a stored pattern is both key (matched) and value (returned); stored
 corrupted embeddings return corrupted vectors to the head. Next proposed
 method: key-value noise-aware FL (corrupted keys, clean values), to be
 pre-registered separately before any run. No PR for noise-aware FL.
+
+
+## 2026-11-22 - Stage 4 pre-registration: key-value noise-aware facility location
+
+Written and committed before any Stage 4 run (code in this commit). Validation only;
+the test split is not read. Foundation proposal Section 5.3; main proposal Section 5.10.
+
+Hypothesis: Stage 3 failed because a stored pattern is both key and value, so stored
+corrupted embeddings return corrupted vectors. Keys that cover the corrupted regions
+but return clean values should raise noise AUC over plain k-means without the clean loss.
+
+Method (benchmarks/key_value_screening.py; library unchanged):
+- Keys: Stage 3 variant B selection (class-wise weighted facility location over clean +
+  corrupted embeddings, weights 1 and gamma; clean or corrupted candidates). Same
+  corrupted copies as Stage 3 (one per training image, Gaussian or salt-and-pepper, level
+  uniform on [0, largest grid level], training noise stream 2; occlusion never used).
+- Values (clean): KV-S = clean embedding of the key's source image; KV-M = weighted mean
+  clean source embedding of the points the key serves (weights 1 clean, gamma corrupted;
+  a key serving nothing keeps its KV-S value).
+- Readout: h(z) = sum_j softmax_j(beta cos(z - mu, k_j - mu)) v_j (memory_screening.KeyValueBridge,
+  one step). Memory stores 2K vectors (K keys + K values).
+- Grid: gamma in {0.25, 0.5, 1, 2}; k in {2, 4, 8, 16} per class; seeds 0-9; ORIGINAL
+  backbone set (seed-0 md5 8df928bbd1, checked before the run).
+
+Selection (tune half only): for KV-S and KV-M and each k, gamma = argmax tune score at the
+design's beta* (ties -> smaller gamma); candidate = variant with the best tune score
+averaged over k (ties -> KV-S).
+
+Decision (docs/phase1_criteria.md, unchanged): candidate vs plain kmeans at equal k on
+noise AUC with the clean guard; Pass / Weak positive / Fail.
+- Pass or Weak positive: run the same code on the replicate backbone set (descriptive
+  confirmation), then MNIST Phase 1, then the Phase 2 pre-registration (test split).
+- Fail: report it; no re-tuning, no new gamma values or variants on these data; the
+  noise-aware line closes and the next approach is a separate proposal.
+
+Descriptive only (no decision): KV-S - na_fl_B with the same keys (mechanism: effect of
+what is returned), KV-M - KV-S, candidate vs na_fl_A / na_kmeans / facility_location
+(Stage 3 designs at the candidate's gamma), candidate at k vs kmeans at 2k (equal stored
+vectors), per-type AUC, per-level accuracy at k = 8, fraction of corrupted keys, and the
+training/validation record (5000 training queries per seed, noise stream 3).

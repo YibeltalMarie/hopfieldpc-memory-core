@@ -41,7 +41,7 @@ import torch
 from benchmarks.memory_diagnostics import paired_summary, split_validation
 from benchmarks.memory_selection import nested_prefix, select_class_memory
 from benchmarks.mnist_baseline import (MnistNet, corrupt_images, corruption_seed, encode, mean_std, noise_grids,
-                                      resolve_device, robust_auc)
+                                       resolve_device, robust_auc)
 from benchmarks.mnist_prototype_retrieval import HopfieldBridge, build_memory, select_beta
 from benchmarks.runs import build_arg_parser, config_from_args, load_data, prepare_run, tune_backbone
 
@@ -92,9 +92,42 @@ def build_designs(run: Any, device: torch.device) -> dict[str, dict[str, Any]]:
     return designs
 
 
+class KeyValueBridge(HopfieldBridge):
+    """Hetero-associative bridge (benchmark only; the library is unchanged).
+
+    Scores are those of HopfieldBridge over the keys (its ``prototypes``); the readout
+    returns separate values:
+        h(z) = sum_j p_j(z) v_j,   p(z) = softmax_j(beta * cos(z - mu, k_j - mu)).
+    values = keys gives HopfieldBridge's output. One retrieval step only.
+    """
+
+    def __init__(self, keys: torch.Tensor, values: torch.Tensor, memory_labels: torch.Tensor, *,
+                 beta: float, center: torch.Tensor | None = None) -> None:
+        super().__init__(keys, memory_labels, beta=beta, center=center)
+        if values.shape != keys.shape:
+            raise ValueError(f"values must be {tuple(keys.shape)}, got {tuple(values.shape)}.")
+        self.register_buffer("values", values.detach().clone().float())
+
+    def set_retrieval(self, *, beta: float | None = None, num_updates: int | None = None) -> None:
+        if num_updates not in (None, 1):
+            raise ValueError("KeyValueBridge supports one retrieval step only.")
+        super().set_retrieval(beta=beta)
+
+    def forward(self, z: torch.Tensor) -> tuple[torch.Tensor, dict[str, Any]]:
+        _, aux = super().forward(z)
+        return aux["weights"].to(self.values.dtype) @ self.values, aux
+
+
 def make_net(run: Any, design: dict[str, Any]) -> MnistNet:
-    """Frozen encoder and head shared with the baseline; only the bridge differs (inference only)."""
-    bridge = HopfieldBridge(design["memory"], design["labels"], beta=1.0, center=design["center"])
+    """Frozen encoder and head shared with the baseline; only the bridge differs (inference only).
+
+    A design with "values" gets a KeyValueBridge whose keys are its "memory".
+    """
+    if "values" in design:
+        bridge = KeyValueBridge(design["memory"], design["values"], design["labels"], beta=1.0,
+                                center=design["center"])
+    else:
+        bridge = HopfieldBridge(design["memory"], design["labels"], beta=1.0, center=design["center"])
     return MnistNet(run.net.encoder, bridge.to(run.device), run.net.head)
 
 
@@ -216,7 +249,8 @@ def run_screening(cfg: dict[str, Any], *, retrain: bool = False, builder: Any = 
         per_seed.append({"seed": seed, "view": view, "ev": ev, "nets": nets, "baseline": run.net,
                          "train_view": train_view, "stored": stored,
                          "build_s": {n: d["build_s"] for n, d in designs.items()},
-                         "sizes": {n: int(d["memory"].shape[0]) for n, d in designs.items()}})
+                         "sizes": {n: int(d["memory"].shape[0]) for n, d in designs.items()},
+                         "info": {n: d["info"] for n, d in designs.items() if "info" in d}})
         del run   # frees the seed's image tensors; only embeddings are kept
         print(f"  seed {seed}: {len(designs)} memories built, beta curves on {tune.numel()} tuning images")
 
@@ -247,6 +281,7 @@ def run_screening(cfg: dict[str, Any], *, retrain: bool = False, builder: Any = 
         "beta_selection_sets": [list(s) for s in sel_sets], "results": results,
         "build_s": {n: [s["build_s"][n] for s in per_seed] for n in names if n != "no_memory"},
         "memory_size": {n: per_seed[0]["sizes"][n] for n in names if n != "no_memory"},
+        "design_info": {n: [s["info"][n] for s in per_seed] for n in per_seed[0]["info"]},
         "train_results": train_results,
         "train_stored_fraction": {n: [s["stored"][n] for s in per_seed] for n in train_results if n != "no_memory"},
     }
