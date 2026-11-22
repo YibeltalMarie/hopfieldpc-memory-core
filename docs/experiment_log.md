@@ -576,3 +576,42 @@ what is returned), KV-M - KV-S, candidate vs na_fl_A / na_kmeans / facility_loca
 (Stage 3 designs at the candidate's gamma), candidate at k vs kmeans at 2k (equal stored
 vectors), per-type AUC, per-level accuracy at k = 8, fraction of corrupted keys, and the
 training/validation record (5000 training queries per seed, noise stream 3).
+
+
+## 2026-11-22 - Stage 4 results: key-value noise-aware facility location -> FAIL (clean guard)
+
+Official run: original backbone set (seed-0 md5 8df928bbd1), code 66e49e0 (pre-registered
+there), seeds 0-9, validation only, test split not read. Not re-tuned.
+
+Tune-half selection: KV-M (mean tune score 0.7129 vs KV-S 0.7086); gamma 0.25 / 1 / 2 / 2
+at k = 2 / 4 / 8 / 16. Decision vs kmeans -> band FAIL at every k (clean guard):
+noise AUC diff (pp) +0.78 (8/2) / +4.99 (10/0) / +5.21 (10/0) / +5.49 (10/0);
+clean diff -1.85 / -1.63 / -2.30 / -1.86 (0/10 at every k).
+Robust to the choice of gamma: the best-clean key-value design at each k still loses
+1.84 / 1.46 / 1.07 / 1.01 pp clean (0-1/10 seeds positive).
+
+Descriptive:
+- Mechanism confirmed: KV-S - na_fl_B (same keys) noise AUC +3.77 / +7.67 / +6.72 / +6.60
+  (10/0 at every k); clean -1.33 / -0.60 / -1.76 / -1.06. KV-M - KV-S +0.27 to +0.64.
+- KV-M - kmeans by type: Gaussian +4.0 / +12.4 / +11.8 / +12.0; salt-and-pepper +1.7 / +5.9
+  / +7.6 / +8.1; occlusion -3.4 / -3.3 / -3.8 / -3.7 (0/10). Per level at k = 8: Gaussian
+  +5.4 to +21.6, salt-and-pepper +0.8 to +11.4, occlusion -1.0 to -5.6.
+- Training split (5000 queries, stream 3) shows the same pattern: clean -1.5 to -2.4,
+  noise AUC +0.9 to +5.7.
+- At equal stored vectors (KV at k vs kmeans at 2k): +0.79 / +4.69 / +5.14 noise AUC.
+- Corrupted keys 41-66 % depending on gamma; clean loss grows with that fraction (Pearson
+  -0.70 over the 16 KV-M designs). kv_M_g2_k8 vs no_memory: clean -1.29, occlusion -2.93.
+- Optimistic ceiling (type-aware oracle: kmeans for clean and occlusion, KV for Gaussian and
+  salt-and-pepper): +1.9 / +6.1 / +6.5 / +6.7 pp noise AUC at no clean cost.
+Interpretation: returning clean values fixes the Stage 3 failure for the corruption types
+covered, but clean and occluded queries that match corrupted keys of another class receive
+a confident wrong-class value. Per the pre-registration the noise-aware line closes here;
+no PR. Any follow-up (e.g. deciding per query when to use the key-value readout) is a new,
+separately pre-registered proposal, and was conceived after seeing these validation data.
+
+Open question (raised after these results, not applied to them): whether future screening
+should use a documented trade-off rule (expected gain at an assumed share p of corrupted
+inputs, with a hard cap on clean loss) instead of the strict 0.3 pp clean guard. p is to be
+set from HopfieldPC's intended use (asked to the project leader). Until decided,
+docs/phase1_criteria.md is unchanged; any method passing only under a new rule must be
+confirmed on new data (replicate backbones, MNIST, held-out test) before a PR.
