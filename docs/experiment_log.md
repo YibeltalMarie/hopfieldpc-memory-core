@@ -615,3 +615,23 @@ inputs, with a hard cap on clean loss) instead of the strict 0.3 pp clean guard.
 set from HopfieldPC's intended use (asked to the project leader). Until decided,
 docs/phase1_criteria.md is unchanged; any method passing only under a new rule must be
 confirmed on new data (replicate backbones, MNIST, held-out test) before a PR.
+
+
+## 2026-11-24 - Stage 4 follow-up diagnostic (pre-registered): where does key-value FL's weight go?
+
+Written and committed before the run (code in this commit). Descriptive only; no decision,
+no tuning; validation evaluation half; test split not read.
+
+Question: why does key-value FL lose clean (-2.3 pp) and occlusion (-3.8 pp) accuracy at
+k = 8 although its values are clean?
+Method (benchmarks/key_value_diagnostics.py): rebuild kmeans_k8, na_fl_B_g2_k8, kv_S_g2_k8,
+kv_M_g2_k8 exactly as in Stage 4 (original backbones, seeds 0-9) at their Stage 4 beta*;
+first check that the accuracies reproduce Stage 4 (largest difference reported). Per query:
+weight on corrupted keys, on wrong-class keys, on wrong-class corrupted keys; class and type
+of the key with the largest weight; correctness. Queries lost vs kmeans_k8 (kv_M) and vs
+na_fl_B (kv_S, same keys).
+Hypothesis: clean and occluded queries lost by key-value FL mostly (> 50 %) have their
+largest weight on a corrupted key of another class ("confident wrong-class value").
+Reading: supported if that share exceeds 50 % for clean and for occlusion; otherwise the
+loss comes mainly from elsewhere (e.g. right-class keys whose values are less typical, or
+thinner clean coverage), which points to a different fix.
