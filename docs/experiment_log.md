@@ -635,3 +635,17 @@ largest weight on a corrupted key of another class ("confident wrong-class value
 Reading: supported if that share exceeds 50 % for clean and for occlusion; otherwise the
 loss comes mainly from elsewhere (e.g. right-class keys whose values are less typical, or
 thinner clean coverage), which points to a different fix.
+
+
+## 2026-11-25 - Amendment 2 committed (screening criteria)
+
+docs/phase1_criteria.md Amendment 2: primary metric = known-type AUC (Gaussian +
+salt-and-pepper, as in the research plan P4.3), occlusion and three-type noise AUC
+secondary; clean margin 1.0 pp (provisional; plan's provisional value 0.5 pp). Made after
+the Stage 3 and 4 results; post hoc, Stage 3 variant A would Pass (k = 2 and 8, both at
+7/10, CIs include 0) and Stage 4 KV-M still Fails. Recorded decisions unchanged; any
+method passing only under this rule (incl. Stage 3 variant A) must be confirmed on
+replicate backbones, MNIST and the Phase 2 test under a pre-registration.
+Timing: the rule was decided on 2026-11-24 (08:39) before the Stage 4 follow-up diagnostic
+finished, but is committed here after its results were seen (the commit cell had not been
+run). The diagnostic is descriptive (retrieval mechanism) and does not bear on the margin.

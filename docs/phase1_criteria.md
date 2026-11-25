@@ -97,3 +97,35 @@ Change, made before any rarity-weighted result exists:
 - Weights stay fixed and positive, so weighted FL keeps its (1 - 1/e)
   guarantee for its own objective. The same R_i is used in the
   combination stage, as in proposal Section 5.5.
+
+
+## Amendment 2 (2026-11-24): primary metric as in the research plan; clean margin 1 pp (provisional)
+
+Decided by Yibeltal Marie on 2026-11-24, pending confirmation by the project leader.
+Applies to every method screened after this commit. Stages 2-4 keep the decisions made
+under the original rule (all Fail); their code paths are unchanged.
+
+Changes
+1. Primary robustness metric: known-type AUC = mean of the Gaussian and salt-and-pepper
+   AUCs, as in the research plan (P4.3). Occlusion AUC and the repository's three-type
+   noise AUC become secondary and are always reported.
+2. Clean guard: mean clean-accuracy loss vs class-wise k-means at most 1.0 pp (was 0.3 pp).
+   The plan's provisional margin is 0.5 pp; 1.0 pp is looser and is set "for now". It may be
+   revised (e.g. after the leader's confirmation), but only by a further dated amendment
+   committed before the next screening run, never in response to a candidate's results.
+Unchanged: +0.3 pp (pass) / +0.1 pp (weak) bands on the primary metric, at least 70 % of
+seeds positive, at least 2 budgets, at most 2 finalists, plain k-means as reference,
+tune-half selection, test split untouched until Phase 2.
+
+Disclosure (post hoc; not decisions)
+This amendment was made after the Stage 3 and Stage 4 validation results were known.
+Re-reading those results under it:
+- Stage 3 variant A (gamma 0.25): Pass. k = 2: known AUC +0.37 [-0.16, +0.90] (7/10),
+  clean -0.64; k = 8: +0.60 [-0.23, +1.42] (7/10), clean -0.85; k = 4 fails (clean -1.17);
+  k = 16 fails (6/10). Fragile: both passing budgets sit exactly at 7/10, both CIs include
+  0, occlusion AUC -0.6 to -1.9 (0-1/10). Under the plan's 0.5 pp it would remain Fail.
+- Stage 4 KV-M: Fail (clean -1.63 to -2.30 pp) despite known AUC +2.9 to +10.1 (9-10/10).
+Because the rule was set after these results, a method that passes only under it,
+including Stage 3 variant A, is a post-hoc candidate: it must be confirmed under a
+pre-registration on data not used here (replicate backbone set, MNIST Phase 1, Phase 2
+test) before any claim of improvement or any PR proposing it.
