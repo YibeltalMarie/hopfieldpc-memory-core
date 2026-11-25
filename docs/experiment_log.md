@@ -713,3 +713,10 @@ Interpretation: the signal comes from the same matching that produces the confid
 wrong-class errors, so it cannot separate those clean queries from corrupted ones. A gate
 would need an independent signal (e.g. a corruption detector trained on the corrupted
 training copies), which would be a new proposal. The noise-aware / key-value line closes.
+
+
+## 2026-11-25 - Working branch renamed
+
+The fork's working branch `experiment/diversity-memory` is renamed `experiment/facility-location` (same history; no commits
+changed). Earlier entries and commit cells refer to the old name. Pull requests go from
+`YibeltalMarie:experiment/facility-location` to `iCog-Labs-Dev:approach/facility-location`.
