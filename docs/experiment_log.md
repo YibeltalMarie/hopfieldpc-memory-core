@@ -691,3 +691,25 @@ Reading: separation "good" if AUROC >= 0.8 for Gaussian and salt-and-pepper at t
 strongest levels AND at most 10 % of clean queries have g > 0.5. If good, a gated memory is
 proposed as a new pre-registered method; any threshold read off these data is post hoc and
 must be confirmed on replicate backbones, MNIST and the Phase 2 test.
+
+
+## 2026-11-25 - Gate-signal check results (descriptive) -> separation NOT good
+
+Code c0e0528 (pre-registered there); original backbones, seeds 0-9, k = 8, Stage 4 beta.
+Reproduction check vs Stage 4: 0.000 pp.
+Pre-registered reading: AUROC >= 0.8 at the three strongest levels -> met (Gaussian 0.883 /
+0.909 / 0.950; salt-and-pepper 0.866 / 0.954 / 0.990); at most 10 % of clean queries with
+g > 0.5 -> NOT met (20.2 %). Verdict: separation not good; a gate driven by the weight on
+corrupted keys is not proposed.
+- Clean g is bimodal: median 1.1 %, but 14.5 % of clean queries have g > 0.75. Occlusion
+  AUROC 0.57-0.73.
+- In the g >= 0.75 bin, kv_M - kmeans: Gaussian +20.3 pp (70 % of Gaussian queries),
+  salt-and-pepper +8.6 (70 %), clean -11.8 (14.5 %), occlusion -11.0 (34 %); clean queries
+  in that bin are harder (kmeans 79.8 % vs 92.3 % for g < 0.25).
+- Illustrative what-if read off these data (post hoc, optimistic): KV only when g >= 0.75
+  keeps most of the noise gain but leaves clean at about -1.7 pp (vs -2.4) and occlusion at
+  about -3.8 pp.
+Interpretation: the signal comes from the same matching that produces the confident
+wrong-class errors, so it cannot separate those clean queries from corrupted ones. A gate
+would need an independent signal (e.g. a corruption detector trained on the corrupted
+training copies), which would be a new proposal. The noise-aware / key-value line closes.
