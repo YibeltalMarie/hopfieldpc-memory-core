@@ -649,3 +649,32 @@ replicate backbones, MNIST and the Phase 2 test under a pre-registration.
 Timing: the rule was decided on 2026-11-24 (08:39) before the Stage 4 follow-up diagnostic
 finished, but is committed here after its results were seen (the commit cell had not been
 run). The diagnostic is descriptive (retrieval mechanism) and does not bear on the margin.
+
+
+## 2026-11-24 - Stage 4 follow-up diagnostic results (descriptive)
+
+Code 2cf1545 (pre-registered there); original backbones, seeds 0-9, k = 8, gamma = 2,
+Stage 4 beta*. Reproduction check: largest accuracy difference vs Stage 4 = 0.000 pp.
+Corrupted keys in the key-value memory: 66.1 %.
+
+Hypothesis SUPPORTED. Of the queries right under kmeans_k8 and wrong under kv_M_g2_k8,
+the largest weight was on a corrupted key of another class for 69.5 % (clean) and 78.7 %
+(occlusion); on any wrong-class key for 95.1 % and 96.2 %. Same keys (na_fl_B -> kv_S):
+85.9 % (clean) and 92.7 % (occlusion).
+- Accuracy follows the top key: right-class top key 93.9-99.5 % correct, wrong-class top
+  key 1.9-6.8 % correct (kv_M, all query types).
+- Clean queries with a wrong-class top key: 9.3 % (kmeans) vs 12.0 % (kv_M); the +2.7 pp
+  matches the -2.3 pp clean loss. na_fl_B and kv_S have the same wrong-class rate (12.0 %)
+  but accuracy 89.6 vs 87.8: after a wrong match a clean value is "confidently wrong",
+  a corrupted value is ambiguous.
+- Gains: right-class corrupted top keys serve 41.2 % (Gaussian) and 34.3 % (salt-and-pepper)
+  of corrupted queries at 95.6 % and 93.9 % accuracy.
+- Weight on corrupted keys (mean over levels): clean 21.2 %, occlusion 40.8 %, Gaussian
+  74.4 %, salt-and-pepper 73.8 % -> on average it separates clean from Gaussian / s&p
+  queries, with occlusion in between. Per-query distributions (needed to judge a gate)
+  were not recorded.
+Interpretation: the clean and occlusion losses come from matching errors that key-value
+retrieval makes confident, not from the values themselves. A gate driven by the weight on
+corrupted keys is a plausible next method; it would be a new, separately pre-registered
+proposal (conceived after these validation data; confirmation on replicate backbones,
+MNIST and the Phase 2 test required).
