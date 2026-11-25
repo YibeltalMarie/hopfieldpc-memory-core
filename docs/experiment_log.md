@@ -678,3 +678,16 @@ retrieval makes confident, not from the values themselves. A gate driven by the 
 corrupted keys is a plausible next method; it would be a new, separately pre-registered
 proposal (conceived after these validation data; confirmation on replicate backbones,
 MNIST and the Phase 2 test required).
+
+
+## 2026-11-25 - Gate-signal check (pre-registered): does g separate clean from corrupted queries?
+
+Written and committed before the run (code in this commit). Descriptive; no decision;
+validation evaluation half; test split not read. Same memories and beta as Stage 4 (k = 8).
+Signal: g = retrieval weight that kv_M_g2_k8 puts on corrupted keys, per query.
+Reports: percentiles of g, share with g > 0.25 / 0.5 / 0.75, AUROC of g (each corrupted
+level vs clean), and kmeans_k8 vs kv_M_g2_k8 accuracy within bins of g.
+Reading: separation "good" if AUROC >= 0.8 for Gaussian and salt-and-pepper at their three
+strongest levels AND at most 10 % of clean queries have g > 0.5. If good, a gated memory is
+proposed as a new pre-registered method; any threshold read off these data is post hoc and
+must be confirmed on replicate backbones, MNIST and the Phase 2 test.
